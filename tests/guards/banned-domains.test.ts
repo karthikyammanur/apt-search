@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { BANNED_SITES, findBannedFetches, loadSourceFiles } from "./rules";
+import { BANNED_SITES, findBannedFetches, loadFetchScopeFiles } from "./rules";
 
 describe("guard: never fetch banned listing sites", () => {
-  it("no fetch call under src/ names a banned site, and providers hold no banned host", () => {
-    expect(findBannedFetches(loadSourceFiles())).toEqual([]);
+  it("no fetch call under src/ or scripts/ names a banned site, and fetching code holds no banned host", () => {
+    expect(findBannedFetches(loadFetchScopeFiles())).toEqual([]);
   });
 
   it("the banned list covers every site named in AGENTS.md rule 4", () => {
@@ -26,6 +26,19 @@ describe("guard: never fetch banned listing sites", () => {
       text: 'const base = "https://m.facebook.com";',
     };
     expect(findBannedFetches([provider])).toHaveLength(1);
+  });
+
+  it("the GTFS exception does not exempt banned sites", () => {
+    const direct = { path: "scripts/gtfs/x.ts", text: 'fetch("https://www.zillow.com/feed.zip")' };
+    const indirect = {
+      path: "scripts/gtfs/y.ts",
+      text: 'const u = "https://facebook.com/x"; fetch(u)',
+    };
+    const fine = { path: "scripts/gtfs/z.ts", text: 'fetch("https://api.511.org/transit/gtfs")' };
+    // A direct banned URL trips two checks (the fetch argument and the banned host).
+    expect(findBannedFetches([direct]).length).toBeGreaterThanOrEqual(1);
+    expect(findBannedFetches([indirect])).toHaveLength(1);
+    expect(findBannedFetches([fine])).toEqual([]);
   });
 
   it("detector allows building a link to open and sender addresses, and unrelated fetches", () => {

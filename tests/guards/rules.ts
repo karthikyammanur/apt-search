@@ -5,7 +5,7 @@
 // into a silent false negative. The price is that src/ comments must not contain the literal
 // strings these rules look for (a call to fetch, a banned domain, a Gmail scope).
 
-import { readdirSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -29,20 +29,32 @@ export function loadSourceFiles(dir = "src", root = repoRoot): SourceFile[] {
       }
     }
   };
-  walk(dir);
+  if (existsSync(path.join(root, dir))) walk(dir);
   return out;
 }
 
-export const PROVIDERS_DIR = "src/lib/providers/";
+/** App code and scripts: everything the fetch rules apply to. */
+export function loadFetchScopeFiles(root = repoRoot): SourceFile[] {
+  return [...loadSourceFiles("src", root), ...loadSourceFiles("scripts", root)];
+}
 
-// Rule 1: fetch is only allowed inside src/lib/providers/.
+export const PROVIDERS_DIR = "src/lib/providers/";
+/** scripts/gtfs/ is an offline job that downloads GTFS feeds once. It is not app traffic. */
+export const GTFS_SCRIPTS_DIR = "scripts/gtfs/";
+export const FETCH_ALLOWED_DIRS = [PROVIDERS_DIR, GTFS_SCRIPTS_DIR];
+
+function mayFetch(filePath: string): boolean {
+  return FETCH_ALLOWED_DIRS.some((dir) => filePath.startsWith(dir));
+}
+
+// Rule 5: fetch is only allowed in src/lib/providers/ and the offline scripts/gtfs/ job.
 const FETCH_CALL = /\bfetch\s*\(/g;
 
 export function findFetchOutsideProviders(files: SourceFile[]): string[] {
   return files
-    .filter((file) => !file.path.startsWith(PROVIDERS_DIR))
+    .filter((file) => !mayFetch(file.path))
     .filter((file) => new RegExp(FETCH_CALL.source).test(file.text))
-    .map((file) => `${file.path}: calls fetch outside ${PROVIDERS_DIR}`);
+    .map((file) => `${file.path}: calls fetch outside ${FETCH_ALLOWED_DIRS.join(" and ")}`);
 }
 
 // Rule 2: never fetch listing sites that forbid scraping.
@@ -89,9 +101,9 @@ export function findBannedFetches(files: SourceFile[]): string[] {
         violations.push(`${file.path}: fetch call mentions a banned site`);
       }
     }
-    // Providers are the only fetchers, so no banned host may appear anywhere in them.
-    if (file.path.startsWith(PROVIDERS_DIR) && BANNED_HOST.test(file.text)) {
-      violations.push(`${file.path}: provider file references a banned site host`);
+    // Providers and the GTFS job are the only fetchers, so no banned host may appear in them.
+    if (mayFetch(file.path) && BANNED_HOST.test(file.text)) {
+      violations.push(`${file.path}: fetching code references a banned site host`);
     }
   }
   return violations;

@@ -14,6 +14,7 @@ import {
   text,
   uniqueIndex,
 } from "drizzle-orm/sqlite-core";
+import type { SourceLink } from "./source-links";
 
 export const LISTING_TYPES = ["room", "studio", "apartment"] as const;
 export const LISTING_STATUSES = [
@@ -31,6 +32,22 @@ export const PREFERENCE_SET_BY = ["me", "chat"] as const;
 export const FEEDBACK_VERDICTS = ["up", "down"] as const;
 export const ROOMMATE_STATUSES = ["Messaged", "Call scheduled", "Met"] as const;
 export const CHAT_ROLES = ["user", "assistant", "system", "tool"] as const;
+/** What a captured post turned out to be. "unknown" until the classifier has run. */
+export const POST_TYPES = [
+  "room_offered",
+  "whole_place_offered",
+  "roommate_wanted",
+  "unknown",
+] as const;
+export const LEAD_STATUSES = ["new", "messaged", "talking", "not_a_fit"] as const;
+export const CHANNELS = [
+  "supost",
+  "gmail_alerts",
+  "rentcast",
+  "extension",
+  "facebook_capture",
+  "apify",
+] as const;
 
 export type Provenance = (typeof PROVENANCE)[number];
 
@@ -40,10 +57,19 @@ export const listings = sqliteTable("listings", {
   url: text("url"),
   rawText: text("raw_text"),
   type: text("type", { enum: LISTING_TYPES }),
+  postType: text("post_type", { enum: POST_TYPES }).notNull().default("unknown"),
   address: text("address"),
   lat: real("lat"),
   lng: real("lng"),
   city: text("city"),
+  /** Facebook posts only. */
+  groupName: text("group_name"),
+  posterProfileUrl: text("poster_profile_url"),
+  /** Every place this listing was seen, once duplicates are merged. See source-links.ts. */
+  sourceLinks: text("source_links", { mode: "json" })
+    .$type<SourceLink[]>()
+    .notNull()
+    .default(sql`'[]'`),
   status: text("status", { enum: LISTING_STATUSES }).notNull().default("New"),
   firstSeen: text("first_seen").notNull(),
   lastChecked: text("last_checked"),
@@ -63,7 +89,15 @@ export const facts = sqliteTable(
     sourceUrl: text("source_url"),
     checkedAt: text("checked_at").notNull(),
   },
-  (table) => [uniqueIndex("facts_listing_field_idx").on(table.listingId, table.field)],
+  // One row per source of truth, so a landlord's answer never erases what the listing said.
+  // Pick the current value with pickCurrentFact (facts.ts).
+  (table) => [
+    uniqueIndex("facts_listing_field_provenance_idx").on(
+      table.listingId,
+      table.field,
+      table.provenance,
+    ),
+  ],
 );
 
 export const enrichment = sqliteTable("enrichment", {
@@ -169,6 +203,69 @@ export const photos = sqliteTable(
     url: text("url").notNull(),
     position: integer("position").notNull().default(0),
     source: text("source").notNull(),
+    /** Perceptual hash for the duplicate-photo check. Null until computed. */
+    phash: text("phash"),
   },
   (table) => [index("photos_listing_idx").on(table.listingId)],
+);
+
+/** Posts from people looking for a roommate. They are not listings. */
+export const roommateLeads = sqliteTable("roommate_leads", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  source: text("source").notNull(),
+  postUrl: text("post_url"),
+  posterName: text("poster_name"),
+  posterProfileUrl: text("poster_profile_url"),
+  groupName: text("group_name"),
+  text: text("text"),
+  datesWanted: text("dates_wanted"),
+  /** Integer cents. Null when the post names no budget. */
+  budgetCents: integer("budget_cents"),
+  status: text("status", { enum: LEAD_STATUSES }).notNull().default("new"),
+  notes: text("notes"),
+  createdAt: text("created_at").notNull(),
+});
+
+/** One row per channel run: feeds the daily per-channel counts and "last captured" times. */
+export const channelRuns = sqliteTable(
+  "channel_runs",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    channel: text("channel", { enum: CHANNELS }).notNull(),
+    groupName: text("group_name"),
+    ranAt: text("ran_at").notNull(),
+    itemsSeen: integer("items_seen").notNull(),
+    itemsNew: integer("items_new").notNull(),
+    error: text("error"),
+  },
+  (table) => [index("channel_runs_channel_ran_idx").on(table.channel, table.ranAt)],
+);
+
+/** Rush-hour service per transit stop. Filled by the step 3 GTFS job, and only by it. */
+export const transitStops = sqliteTable(
+  "transit_stops",
+  {
+    stopId: text("stop_id").notNull(),
+    feed: text("feed").notNull(),
+    name: text("name").notNull(),
+    lat: real("lat").notNull(),
+    lng: real("lng").notNull(),
+    modes: text("modes", { mode: "json" }).$type<string[]>().notNull(),
+    weekdayRushDepartures: integer("weekday_rush_departures").notNull(),
+    /** Null when the stop has too few rush-hour departures to have a headway. */
+    medianRushHeadwayMin: integer("median_rush_headway_min"),
+    computedAt: text("computed_at").notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.feed, table.stopId] })],
+);
+
+/** Failed password attempts, kept in the database because serverless functions share no memory. */
+export const loginAttempts = sqliteTable(
+  "login_attempts",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    clientKey: text("client_key").notNull(),
+    attemptedAt: text("attempted_at").notNull(),
+  },
+  (table) => [index("login_attempts_client_idx").on(table.clientKey, table.attemptedAt)],
 );

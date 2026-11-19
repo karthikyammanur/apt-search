@@ -32,7 +32,7 @@ Next.js (App Router) + TypeScript strict, Vercel AI SDK (OpenAI-compatible provi
 2. Every value written to the `facts` table has a provenance: `listing`, `landlord`, `estimate`, `api` or `me`.
 3. No tool, route or job may send a message, email or payment. Gmail access is read-only and links inside emails are never opened.
 4. No scraping. Code fetches listings only from SUPost's and RentCast's APIs. Never fetch Zillow, Craigslist, Airbnb, Furnished Finder, Zumper or Facebook URLs. Facebook posts arrive only through notification emails or the extension's user-clicked capture. The optional Apify channel stays disabled unless `ENABLE_APIFY=true`.
-5. Every external call goes through a cached client in `src/lib/providers/`.
+5. Every external call goes through a cached client in `src/lib/providers/`. `scripts/gtfs/` may download GTFS feeds directly because it is an offline job, not app traffic.
 6. Secrets and personal details stay private. Never commit `.env*` (except `.env.example`) or `config/*.local.json`. Never read either file, and never write the employer, the real office address or personal finances into code, tests, docs, commit messages or PROGRESS.md. Use the example settings and neutral fixtures. Never read `process.env` in a `"use client"` file.
 7. Edit only the files your step owns (see TASKS.md). Need a change elsewhere? Stop and report it.
 

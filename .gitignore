@@ -2,5 +2,20 @@
 !.env.example
 config/*.local.json
 data/*.db
+data/*.db-*
 .vercel
 node_modules
+
+# Next.js and TypeScript build output
+/.next/
+/out/
+/build
+next-env.d.ts
+*.tsbuildinfo
+
+# Test output
+/coverage
+/playwright-report/
+/test-results/
+/blob-report/
+/playwright/.cache/

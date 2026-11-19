@@ -1,0 +1,15 @@
+node_modules
+.next
+package-lock.json
+src/db/migrations
+src/app/globals.css
+playwright-report
+test-results
+data
+docs
+prompts
+AGENTS.md
+CLAUDE.md
+PROGRESS.md
+SETUP.md
+TASKS.md

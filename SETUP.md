@@ -21,3 +21,5 @@ git worktree add ../af-step-3 -b step-3-gtfs
 git worktree add ../af-step-4 -b step-4-domain
 ```
 Open each folder in its own VS Code window: Codex in af-step-2 and af-step-3, Claude Code in af-step-4. Copy `.env.local` into af-step-2 only. Merge each branch into main after its review.
+
+**Turso:** `npm run db:migrate` and `npm run db:seed` use `file:data/dev.db` and do not read `.env.local`; to run them against Turso, set `DATABASE_URL` and `DATABASE_AUTH_TOKEN` in your shell first (PowerShell: `$env:DATABASE_URL="libsql://..."`; bash: `export DATABASE_URL=libsql://...`).

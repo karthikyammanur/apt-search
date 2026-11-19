@@ -9,3 +9,114 @@ Append one entry per session. Newest at the bottom.
 - Assumptions:
 - Open risks or questions for Karthik:
 -->
+
+## 2026-11-19, step 1, Claude Code
+
+Branch `step-1-harness`, implementation commit `99ecd4e`.
+
+### Changed
+- Next.js 16.4.6 app (App Router, Turbopack), TypeScript strict with `noUncheckedIndexedAccess`, Tailwind 4, `shadcn init` only (no components added), ESLint 9, Prettier. The scaffold was generated in a scratch directory and copied in selectively so it could not overwrite `AGENTS.md`, `CLAUDE.md` or `.gitignore`.
+- `src/db/`: `schema.ts` (all 9 tables from docs/design.md plus `photos`), generated migration `0000_regular_ultimo.sql`, `index.ts` (libSQL client), `settings-schema.ts` (one Zod schema), `settings.ts` (Zod on read and write), `defaults.ts` (8 soft factors, starting weight 0.125), `seeding.ts` and `seed.ts`, `run-migrations.ts` and `migrate.ts`.
+- Password gate: `src/proxy.ts` (Next 16 name for middleware, TASKS.md row updated to match), `src/app/login/{page,login-form,actions,session}`. HMAC-SHA256 signed cookie, httpOnly, sameSite lax, secure in production, 30 days, key derived from `APP_PASSWORD`. Fails closed when `APP_PASSWORD` is unset. `/api/*` gets 401, everything else redirects to `/login`.
+- Tests: `tests/guards/` (5 guards from the prompt, plus provenance and seed tests, plus session token tests), `tests/e2e/login.spec.ts`.
+- Harness: `.husky/pre-commit` runs `npm run check`; `.nvmrc` (22.14); `engines.node` `>=22.12`; `.gitignore` extended; SETUP.md has one Turso line.
+- Placeholder READMEs (one line each) in the other steps' folders, as the step 1 prompt asked. New files only; nothing existing was edited.
+- Outside the literal Owns list but needed for the scaffold: `src/app/{layout,page,globals.css,favicon.ico}`, `src/lib/utils.ts` (shadcn `cn` re-export), `components.json`, `vitest.config.mts`, `playwright.config.ts`, `drizzle.config.ts`, `.prettierrc`, `.prettierignore`.
+- `npm run smoke` is an inline `node -e` in package.json that prints "no providers yet". `scripts/smoke.ts` belongs to step 2, which will replace the script.
+
+### Packages added
+- Runtime: `next`, `react`, `react-dom` (app); `drizzle-orm`, `@libsql/client` (database); `zod` (validation); `cn`, `tw-animate-css`, `shadcn` (what `shadcn init` wires into `src/lib/utils.ts` and `globals.css`; `cn` is published by the shadcn maintainers as the clsx plus tailwind-merge replacement).
+- Dev: `typescript`, `@types/node`, `@types/react`, `@types/react-dom`, `tailwindcss`, `@tailwindcss/turbopack` (from the Next scaffold); `eslint`, `eslint-config-next`; `prettier`; `drizzle-kit` (generates migrations); `tsx` (runs the TypeScript seed and migrate scripts); `vitest`; `@playwright/test`; `husky`.
+- `shadcn init` also installed `@base-ui/react`, `class-variance-authority` and `lucide-react` for a Button component. I deleted the Button (`src/components/` is step 7's folder) and uninstalled those three.
+- Playwright also downloaded a Chromium build (not an npm package).
+
+### Commands run (with output)
+Baseline before any change: `npm run check` printed `npm error Missing script: "check"` (no package.json existed; expected for step 1).
+
+Node: `node -v` printed `v26.13.1`, not 22.14. That satisfies `engines` (`>=22.12`) and the latest Vitest and Vite, so everything below ran on Node 26.13.1. It was not run on 22.14 (see risks).
+
+```
+$ npm run check
+> tsc --noEmit && eslint . && vitest run
+ Test Files  7 passed (7)
+      Tests  34 passed | 1 skipped (35)
+(exit 0)
+
+$ npm run build
+▲ Next.js 16.4.6 (Turbopack)
+✓ Compiled successfully
+Route (app)
+┌ ○ /
+├ ○ /_not-found
+└ ○ /login
+ƒ Proxy (Middleware)
+(exit 0)
+
+$ npm run test:e2e
+Running 1 test using 1 worker
+  ok 1 [chromium] › tests\e2e\login.spec.ts:4:1 › wrong password is rejected, right password reaches the home page (929ms)
+  1 passed (14.4s)
+(exit 0)
+```
+
+The 1 skipped test is the tool registry guard, which skips while `src/lib/agent/tools.ts` does not exist.
+
+Fresh clone (`git clone`, then `npm ci`, with no `.env*`, no `data/`, no `next-env.d.ts`):
+```
+$ npm run db:migrate && npm run db:seed
+Migrations applied.
+Seeded from settings.example.json: 11 settings, 8 starting weights written.
+(exit 0)
+```
+`npm run check` and `npm run build` also passed in that clone. Seeding a second time wrote 0 rows (idempotent). Weights in the table sum to 1.
+
+Guard demonstrations. For each, I added a deliberate violation under `src/`, ran the guard, removed the file, and ran it again.
+```
+GUARD 1  src/lib/intake/violation.ts:  export const load = () => fetch("https://example.com/data");
+  FAIL  "src/lib/intake/violation.ts: calls fetch outside src/lib/providers/"     (1 failed | 1 passed)
+  after removal:  Tests 2 passed (2)
+
+GUARD 2a src/lib/intake/violation.ts:  fetch("https://www.facebook.com/groups/12345")
+  FAIL  "src/lib/intake/violation.ts: fetch call mentions a banned site"           (1 failed | 9 passed)
+GUARD 2b src/lib/providers/violation.ts:  const BASE = "https://www.zillow.com/homes/"; fetch(BASE)
+  guard 1 passes there (providers may fetch); guard 2:
+  FAIL  "src/lib/providers/violation.ts: provider file references a banned site host"  (1 failed | 9 passed)
+  after removal:  Tests 10 passed (10)
+
+GUARD 3  src/app/violation.tsx:  "use client"; export const key = process.env.APP_PASSWORD;
+  FAIL  "src/app/violation.tsx: \"use client\" file reads process.env"             (1 failed | 1 passed)
+  after removal:  Tests 2 passed (2)
+
+GUARD 4  src/lib/agent/tools.ts exporting toolRegistry with get_shortlist and send_message
+  before the file existed:  Tests 1 passed | 1 skipped (2)
+  FAIL  "tool \"send_message\" contains a forbidden word (send, email, reply, pay, purchase)"
+  clean registry (get_shortlist, record_feedback):  Tests 2 passed (2), executed, not skipped
+  after removal:  Tests 1 passed | 1 skipped (2)
+
+GUARD 5  src/lib/intake/violation.ts:  scopes include .../auth/gmail.readonly and .../auth/gmail.send
+  FAIL  "src/lib/intake/violation.ts: Gmail scope \"gmail.send\" is not gmail.readonly"  (1 failed | 7 passed)
+  after removal:  Tests 8 passed (8)
+
+Clean tree, full suite:  Test Files 7 passed (7), Tests 34 passed | 1 skipped (35)
+```
+
+Pre-commit hook: with the guard 1 violation staged, `git commit` printed the failing guard, then `husky - pre-commit script failed (code 1)`; exit status 1; HEAD stayed at `99ecd4e`. I then unstaged and deleted the violation file.
+
+### Assumptions
+- Settings are a key/value table (JSON value) so later steps can add settings without a migration; Zod validates every read and write. `npm run db:seed` keeps existing rows; `npm run db:seed -- --overwrite` re-reads settings from the config file. Learned weights are never overwritten.
+- Seeded weights are `preferences` rows with kind `soft`, value null, weight 0.125, and `set_by` null (a starting default neither of us has touched). The design lists `set_by` as me or chat only; null is my addition.
+- Soft factor keys (my naming): `commute`, `transit_quality`, `budget_headroom`, `grocery`, `gym`, `cafes`, `reviews_trust`, `lease_fit`. They come from the 8 rows of the Scoring table in docs/design.md and are exported from `src/db/defaults.ts` for step 4.
+- `facts` has a unique index on (listing_id, field): one current value per field. `enrichment` is keyed by `listing_id`. `api_cache` is keyed by (provider, request_hash). `chat.role` is limited to user, assistant, system, tool.
+- Tool registry contract for step 6: `src/lib/agent/tools.ts` exports `toolRegistry`, an object keyed by tool name or an array of objects with `name`.
+- The guards scan raw text including comments, so a comment under `src/` must not contain a call to fetch, a banned domain, or a non-readonly Gmail scope. Providers may mention sender addresses such as `@mail.craigslist.org`; those are not flagged. Banned list also covers `fb.com` and `fb.me`.
+- The DB scripts do not read `.env.local`; they default to `file:data/dev.db`. Next itself loads `.env*` files at build and run time; I did not open any of them.
+- E2E runs a production build on port 3100 with its own throwaway password (`tests/e2e/env.ts`).
+
+### Open risks or questions for Karthik
+- Node: I could not test on 22.14. The terminal had v26.13.1, and a probe to fetch a 22.14 binary was blocked. Please run `npm run check` once under 22.14 (for example with nvm) before relying on `.nvmrc`.
+- `npm audit` reports 4 moderate findings, all dev-only: `drizzle-kit` depends on the deprecated `@esbuild-kit` packages, which pull in an old esbuild (GHSA-67mh-4wv8-2f99, about esbuild's dev server, which we never run). The offered fix downgrades `drizzle-kit`, so I did not apply it.
+- Next prints a warning that it ignored a stray `package-lock.json` in the Downloads folder above the repo. Deleting that file removes the warning; or set `turbopack.root` in `next.config.ts`.
+- The scaffold turned on `cacheComponents` and `partialPrefetching` in `next.config.ts`. I kept them. They require pages that read cookies, headers or the database to sit inside a Suspense boundary, which step 6 and step 7 will run into. Easy to turn off if that is unwanted friction.
+- No rate limiting on the login form. Fine behind a long password; worth adding if the app is public.
+- Schema gaps the design text implies but its column lists do not include: Facebook `group_name` and `poster_profile_url`, a list of merged source links for dedupe, and a photo hash. I followed the listed columns exactly. Steps 5 and 7 cannot edit `src/db/`; they can store these as `facts` rows, or ask for a schema change.
+- By hand: import the repo into Vercel, set `APP_PASSWORD`, `DATABASE_URL` and `DATABASE_AUTH_TOKEN` there, then run `db:migrate` and `db:seed` against Turso with shell variables (see SETUP.md). I did not do any of this.

@@ -120,3 +120,84 @@ Pre-commit hook: with the guard 1 violation staged, `git commit` printed the fai
 - No rate limiting on the login form. Fine behind a long password; worth adding if the app is public.
 - Schema gaps the design text implies but its column lists do not include: Facebook `group_name` and `poster_profile_url`, a list of merged source links for dedupe, and a photo hash. I followed the listed columns exactly. Steps 5 and 7 cannot edit `src/db/`; they can store these as `facts` rows, or ask for a schema change.
 - By hand: import the repo into Vercel, set `APP_PASSWORD`, `DATABASE_URL` and `DATABASE_AUTH_TOKEN` there, then run `db:migrate` and `db:seed` against Turso with shell variables (see SETUP.md). I did not do any of this.
+
+## 2026-11-19, step 1b, Claude Code
+
+Small fixes to step 1 before steps 2 to 4 start. Branch `step-1-harness`, commit `48dc43e`. Step 1 stays Passing; no status was changed.
+
+### Changed
+- **Schema**, migration `0001_overrated_captain_marvel.sql` (incremental, so an existing database upgrades in place):
+  - `listings` gains `post_type` (room_offered, whole_place_offered, roommate_wanted, unknown; default unknown), `group_name`, `poster_profile_url` and `source_links` (JSON array of `{source, url, seen_at}`, default `[]`). `src/db/source-links.ts` has the Zod schema for it.
+  - `photos` gains `phash` (nullable).
+  - New tables `roommate_leads`, `channel_runs`, `transit_stops` (primary key `feed, stop_id`) and `login_attempts`. 14 tables in total.
+- **Facts**: the unique index is now (`listing_id`, `field`, `provenance`). `src/db/facts.ts` exports `PROVENANCE_PRIORITY` (landlord, me, listing, api, estimate) and the pure `pickCurrentFact(rows)`, which returns the winning row.
+- **`next.config.ts`**: `cacheComponents` and `partialPrefetching` removed. The build no longer prints "Cache Components enabled".
+- **Login rate limit**: 5 failed attempts within 15 minutes lock that client out for 15 minutes. `src/db/login-attempts.ts` holds the gate, `src/app/login/attempt-login.ts` holds the whole login decision (free of Next APIs so tests can call it), and `actions.ts` is now thin.
+- **`.claude/settings.json`**: explicit `Read` denies for `.env`, `.env.local`, `.env.development`, `.env.test`, `.env.staging`, `.env.production` and `.env.*.local`.
+- **Fetch guard** now scans `src/` and `scripts/`, and allows `fetch` in `src/lib/providers/` and `scripts/gtfs/`. The banned-site checks still apply in both. AGENTS.md rule 5 has the one-line GTFS exception.
+- **TASKS.md** (ownership only): step 2 lists `src/lib/providers/gmail.ts`; step 3 notes it writes only to `transit_stops`; a line under the table says only step 1 edits `src/db/`.
+- **E2E**: `playwright.config.ts` now deletes and migrates a throwaway `data/e2e.db` before the build, and sets `DATABASE_URL` to it, because the login page now needs a database. Added a second e2e test that checks the lockout through the real request path.
+- New tests: `facts.test.ts`, `login-rate-limit.test.ts`, `tables.test.ts`; `fetch-boundary.test.ts` and `banned-domains.test.ts` extended.
+
+### Commands run (with output)
+Baseline before any change: `npm run check` passed (34 passed, 1 skipped). Node was v26.13.1.
+
+```
+$ npm run check
+ Test Files  10 passed (10)
+      Tests  65 passed | 1 skipped (66)
+(exit 0)
+
+$ npm run build
+✓ Compiled successfully
+Route (app)  ┌ ○ /   ├ ○ /_not-found   └ ○ /login      ƒ Proxy (Middleware)
+(exit 0)
+
+$ npm run test:e2e
+  ok 1 › wrong password is rejected, right password reaches the home page (754ms)
+  ok 2 › login rate limit › five wrong passwords lock the client out, even for the right password (709ms)
+  2 passed (11.6s)
+(exit 0)
+```
+
+Fresh clone of commit `48dc43e` (`npm ci`, no `.env*`, no `data/`):
+```
+$ npm run db:migrate && npm run db:seed
+Migrations applied.
+Seeded from settings.example.json: 11 settings, 8 starting weights written.
+tables: 14 | migrations: 2
+```
+`npm run check` (65 passed, 1 skipped) and `npm run test:e2e` (2 passed) also passed in that clone.
+
+In-place upgrade of the existing step 1 database (`data/dev.db`, created under migration 0000): `npm run db:migrate` took it from 1 to 2 migrations, kept all 11 settings and the 8 weights (sum 1), added the 5 new tables and columns, and left a second run a no-op.
+
+Rate limit test check: I temporarily set `LOGIN_MAX_FAILURES` to 6. 5 unit tests and the e2e lockout test failed, so they do detect the limit. I reverted it; the figures above are from the reverted tree.
+
+Fetch guard exception, each with a deliberate file that I removed afterward:
+```
+scripts/violation.ts          fetch("https://example.com/data")
+  FAIL  "scripts/violation.ts: calls fetch outside src/lib/providers/ and scripts/gtfs/"
+scripts/gtfs/download.ts      fetch("https://api.511.org/transit/datafeeds?operator_id=CT")
+  PASS  both fetch guards (14 passed)
+scripts/gtfs/download.ts      fetch("https://www.zillow.com/feed.zip")
+  boundary guard PASS; banned-domain guard FAIL:
+    "scripts/gtfs/download.ts: fetch call mentions a banned site"
+    "scripts/gtfs/download.ts: fetching code references a banned site host"
+```
+`.claude/settings.json` parses, and `.env.example` is still readable (I read its first 3 lines).
+
+### Assumptions
+- The rate limit is per client, keyed on the first address in `x-forwarded-for` (falling back to `x-real-ip`, then `unknown`). A single global counter would let anyone lock the owner out. On Vercel the platform sets that header; anywhere else a caller could vary it, so only trust it behind a proxy you control.
+- The lock lasts 15 minutes from the fifth failure. Rejected attempts during a lockout are not recorded, so it cannot extend itself. A correct login clears that client's failures, and rows older than 24 hours are pruned. If the database errors, login fails closed with "Login is temporarily unavailable".
+- `pickCurrentFact` skips rows whose value is null (null means unknown), so an unknown never overrides a known value from a lower source. It returns null if no row has a known value, and breaks a same-source tie by latest `checked_at`.
+- `listings.post_type` is NOT NULL with default `unknown`. `channel_runs.items_seen` and `items_new` are NOT NULL with no default. `transit_stops.weekday_rush_departures` is NOT NULL (0 is a real count) and `median_rush_headway_min` is nullable.
+- I added no unique constraint on `roommate_leads.post_url`, so step 5 has to dedupe repeat captures in code.
+- The `.env` deny list uses explicit names, not `Read(./.env.*)`, because deny rules win over allow rules and a wildcard would also block `.env.example`.
+- The fetch guard does not scan `extension/`, because the browser extension has to POST captures to the app.
+
+### Open risks or questions for Karthik
+- Login now depends on the database. On a first Vercel deploy, run `db:migrate` against Turso first, or the login page shows "Login is temporarily unavailable".
+- AGENTS.md's folder map still says providers is "the ONLY place allowed to call `fetch`". Rule 5 now states the GTFS exception, but you may want the folder map wording to match. I left it, since you asked for one line.
+- I did not test the new deny rules: that would mean trying to read a file I am told never to read. I am also not sure they cover shell commands such as `cat`.
+- A `.env.local` now exists; Next loads it at build and run time and I have not opened it. The e2e overrides `APP_PASSWORD` and `DATABASE_URL`, so it cannot reach whatever database that file names.
+- The risks from the step 1 entry still stand: Node 22.14 is untested, 4 dev-only `npm audit` findings via `drizzle-kit`, and the stray `package-lock.json` in the Downloads folder.

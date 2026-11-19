@@ -1,0 +1,13 @@
+{
+  "officeAddress": "250 Hamilton Ave, Palo Alto, CA 94301",
+  "region": "bay-area",
+  "moveInEarliest": "2027-01-02",
+  "moveInLatest": "2027-01-08",
+  "startDate": "2027-01-11",
+  "moveOut": "2027-08-13",
+  "budgetCapCents": 250000,
+  "maxCommuteMinutes": 30,
+  "requirePrivateBedroom": true,
+  "requirePrivateBath": true,
+  "requireFurnished": true
+}

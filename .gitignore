@@ -1,0 +1,6 @@
+.env*
+!.env.example
+config/*.local.json
+data/*.db
+.vercel
+node_modules

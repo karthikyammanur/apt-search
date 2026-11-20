@@ -1,0 +1,283 @@
+import path from "node:path";
+import { z } from "zod";
+import { rows } from "./csv";
+
+const id = z.string().min(1);
+const date = z
+  .string()
+  .regex(/^\d{8}$/)
+  .refine((s) => {
+    const iso = `${s.slice(0, 4)}-${s.slice(4, 6)}-${s.slice(6, 8)}`;
+    const ms = Date.parse(iso);
+    return Number.isFinite(ms) && new Date(ms).toISOString().slice(0, 10) === iso;
+  }, "Invalid GTFS date");
+const flag = z.enum(["0", "1"]);
+const calendarSchema = z.object({
+  service_id: id,
+  start_date: date,
+  end_date: date,
+  monday: flag,
+  tuesday: flag,
+  wednesday: flag,
+  thursday: flag,
+  friday: flag,
+  saturday: flag,
+  sunday: flag,
+});
+const exceptionSchema = z.object({ service_id: id, date, exception_type: z.enum(["1", "2"]) });
+type Calendar = z.infer<typeof calendarSchema>;
+type Exception = z.infer<typeof exceptionSchema>;
+const weekdays = [
+  "sunday",
+  "monday",
+  "tuesday",
+  "wednesday",
+  "thursday",
+  "friday",
+  "saturday",
+] as const;
+const asDate = (s: string) =>
+  new Date(`${s.slice(0, 4)}-${s.slice(4, 6)}-${s.slice(6, 8)}T00:00:00Z`);
+const compact = (d: Date) => d.toISOString().slice(0, 10).replaceAll("-", "");
+
+export function activeServices(
+  day: string,
+  calendars: Calendar[],
+  exceptions: Exception[],
+): Set<string> {
+  const weekday = weekdays[asDate(day).getUTCDay()]!;
+  const services = new Set(
+    calendars
+      .filter((c) => c.start_date <= day && c.end_date >= day && c[weekday] === "1")
+      .map((c) => c.service_id),
+  );
+  for (const e of exceptions)
+    if (e.date === day) {
+      if (e.exception_type === "1") services.add(e.service_id);
+      else services.delete(e.service_id);
+    }
+  return services;
+}
+
+export function chooseDate(
+  calendars: Calendar[],
+  exceptions: Exception[],
+  today = new Date(),
+): string {
+  for (const day of ["20270112", "20270113", "20270114", "20270115", "20270111"]) {
+    if (activeServices(day, calendars, exceptions).size) return day;
+  }
+  const bounds = [...calendars.map((c) => c.end_date), ...exceptions.map((e) => e.date)].sort();
+  const end = bounds.at(-1);
+  if (!end) throw new Error("Feed has no calendar coverage");
+  const cursor = new Date(
+    Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()),
+  );
+  cursor.setUTCDate(cursor.getUTCDate() + ((2 - cursor.getUTCDay() + 7) % 7 || 7));
+  for (; compact(cursor) <= end; cursor.setUTCDate(cursor.getUTCDate() + 7)) {
+    const candidate = compact(cursor);
+    if (activeServices(candidate, calendars, exceptions).size) return candidate;
+  }
+  throw new Error("Feed covers neither mid January 2027 nor a future Tuesday; refresh the feed");
+}
+
+export type StopResult = {
+  feed: string;
+  stopId: string;
+  name: string;
+  lat: number;
+  lng: number;
+  modes: string[];
+  weekdayRushDepartures: number;
+  medianRushHeadwayMin: number | null;
+  computedAt: string;
+};
+const timeSchema = z
+  .string()
+  .regex(/^\d{2,}:\d{2}:\d{2}$/)
+  .refine((s) => {
+    const parts = s.split(":").map(Number);
+    return parts[1]! < 60 && parts[2]! < 60;
+  });
+const seconds = (s: string) =>
+  s
+    .split(":")
+    .map(Number)
+    .reduce((a, b) => a * 60 + b, 0);
+const median = (times: number[]): number | null => {
+  if (times.length < 2) return null;
+  times.sort((a, b) => a - b);
+  const gaps = times
+    .slice(1)
+    .map((t, i) => t - times[i]!)
+    .sort((a, b) => a - b);
+  const middle = Math.floor(gaps.length / 2);
+  return Math.round(
+    (gaps.length % 2 ? gaps[middle]! : (gaps[middle - 1]! + gaps[middle]!) / 2) / 60,
+  );
+};
+
+export async function compute(
+  directory: string,
+  feed: string,
+  today = new Date(),
+): Promise<{ date: string; stops: StopResult[]; missingTimes: number }> {
+  const file = (name: string) => path.join(directory, `${name}.txt`);
+  const calendars: Calendar[] = [],
+    exceptions: Exception[] = [];
+  for await (const row of rows(file("calendar"), calendarSchema, true)) calendars.push(row);
+  for await (const row of rows(file("calendar_dates"), exceptionSchema, true)) exceptions.push(row);
+  const day = chooseDate(calendars, exceptions, today);
+  const services = activeServices(day, calendars, exceptions);
+  const routes = new Map<string, string>();
+  for await (const r of rows(
+    file("routes"),
+    z.object({ route_id: id, route_type: z.coerce.number().int().nonnegative() }),
+  )) {
+    const type = r.route_type;
+    const mode =
+      feed === "marguerite"
+        ? "shuttle"
+        : type === 0 || (type >= 900 && type < 1000)
+          ? "light rail"
+          : [1, 2, 5, 6, 7, 12].includes(type) ||
+              (type >= 100 && type < 200) ||
+              (type >= 400 && type < 500)
+            ? "rail"
+            : type === 3 ||
+                type === 11 ||
+                (type >= 200 && type < 300) ||
+                (type >= 700 && type < 900)
+              ? "bus"
+              : null;
+    if (mode) routes.set(r.route_id, mode);
+  }
+  const trips = new Map<string, string>();
+  for await (const t of rows(
+    file("trips"),
+    z.object({ trip_id: id, route_id: id, service_id: id }),
+  )) {
+    const mode = routes.get(t.route_id);
+    if (mode && services.has(t.service_id)) trips.set(t.trip_id, mode);
+  }
+  const frequencies = new Map<string, { start: number; end: number; gap: number }[]>();
+  for await (const f of rows(
+    file("frequencies"),
+    z.object({
+      trip_id: id,
+      start_time: timeSchema,
+      end_time: timeSchema,
+      headway_secs: z.coerce.number().int().positive(),
+    }),
+    true,
+  )) {
+    if (!trips.has(f.trip_id)) continue;
+    const start = seconds(f.start_time),
+      end = seconds(f.end_time);
+    if (end <= start) throw new Error("Invalid frequency interval");
+    const entries = frequencies.get(f.trip_id) ?? [];
+    entries.push({ start, end, gap: f.headway_secs });
+    frequencies.set(f.trip_id, entries);
+  }
+  const timeRow = z.object({
+    trip_id: id,
+    stop_id: id,
+    stop_sequence: z.coerce.number().int().nonnegative(),
+    departure_time: z.union([timeSchema, z.literal("")]),
+    pickup_type: z.enum(["", "0", "1", "2", "3"]).default(""),
+  });
+  const bases = new Map<string, { sequence: number; time: number }>();
+  if (frequencies.size)
+    for await (const t of rows(file("stop_times"), timeRow)) {
+      if (!frequencies.has(t.trip_id) || !t.departure_time) continue;
+      const previous = bases.get(t.trip_id);
+      if (!previous || t.stop_sequence < previous.sequence)
+        bases.set(t.trip_id, { sequence: t.stop_sequence, time: seconds(t.departure_time) });
+    }
+  const stops = new Map<
+    string,
+    { result: StopResult; parent: string; times: number[]; modes: Set<string> }
+  >();
+  for await (const s of rows(
+    file("stops"),
+    z.object({
+      stop_id: id,
+      stop_name: z.string().default(""),
+      stop_lat: z.string().default(""),
+      stop_lon: z.string().default(""),
+      parent_station: z.string().default(""),
+      location_type: z.string().default(""),
+    }),
+  )) {
+    if (s.location_type && !["0", "1"].includes(s.location_type)) continue;
+    const coordinate = z.object({
+      lat: z.coerce.number().min(-90).max(90),
+      lng: z.coerce.number().min(-180).max(180),
+    });
+    if (!s.stop_lat || !s.stop_lon) throw new Error("Stop missing coordinates");
+    const coords = coordinate.parse({ lat: s.stop_lat, lng: s.stop_lon });
+    stops.set(s.stop_id, {
+      result: {
+        feed,
+        stopId: s.stop_id,
+        name: id.parse(s.stop_name),
+        ...coords,
+        modes: [],
+        weekdayRushDepartures: 0,
+        medianRushHeadwayMin: null,
+        computedAt: today.toISOString(),
+      },
+      parent: s.parent_station,
+      times: [],
+      modes: new Set(),
+    });
+  }
+  let missingTimes = 0;
+  for await (const t of rows(file("stop_times"), timeRow)) {
+    const mode = trips.get(t.trip_id);
+    if (!mode || t.pickup_type === "1") continue;
+    const stop = stops.get(t.stop_id);
+    if (!stop) throw new Error("Trip references missing stop");
+    stop.modes.add(mode);
+    if (!t.departure_time) {
+      missingTimes++;
+      continue;
+    }
+    const departure = seconds(t.departure_time);
+    const windows = frequencies.get(t.trip_id);
+    if (windows) {
+      const base = bases.get(t.trip_id);
+      if (!base) throw new Error("Frequency trip missing start time");
+      const offset = departure - base.time;
+      for (const window of windows) {
+        const first = Math.max(0, Math.ceil((7 * 3600 - offset - window.start) / window.gap));
+        for (
+          let start = window.start + first * window.gap;
+          start < window.end && start + offset < 9 * 3600;
+          start += window.gap
+        ) {
+          stop.times.push(start + offset);
+        }
+      }
+    } else if (departure >= 7 * 3600 && departure < 9 * 3600) stop.times.push(departure);
+  }
+  // Station records aggregate their platforms; platform records retain their own service.
+  for (const stop of stops.values())
+    if (stop.parent) {
+      const parent = stops.get(stop.parent);
+      if (parent) {
+        parent.times.push(...stop.times);
+        for (const mode of stop.modes) parent.modes.add(mode);
+      }
+    }
+  return {
+    date: `${day.slice(0, 4)}-${day.slice(4, 6)}-${day.slice(6, 8)}`,
+    missingTimes,
+    stops: [...stops.values()].map((s) => ({
+      ...s.result,
+      modes: [...s.modes].sort(),
+      weekdayRushDepartures: s.times.length,
+      medianRushHeadwayMin: median(s.times),
+    })),
+  };
+}

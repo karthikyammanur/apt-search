@@ -5,7 +5,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "[ -f package.json ] || exit 0; npm run check --silent >/dev/null 2>&1 || { echo 'npm run check is failing. Fix it (or explain why it cannot pass yet) before ending your turn.' >&2; exit 2; }"
+            "command": "node .claude/hooks/stop-check.mjs"
           }
         ]
       }

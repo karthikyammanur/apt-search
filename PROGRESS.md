@@ -201,3 +201,50 @@ scripts/gtfs/download.ts      fetch("https://www.zillow.com/feed.zip")
 - I did not test the new deny rules: that would mean trying to read a file I am told never to read. I am also not sure they cover shell commands such as `cat`.
 - A `.env.local` now exists; Next loads it at build and run time and I have not opened it. The e2e overrides `APP_PASSWORD` and `DATABASE_URL`, so it cannot reach whatever database that file names.
 - The risks from the step 1 entry still stand: Node 22.14 is untested, 4 dev-only `npm audit` findings via `drizzle-kit`, and the stray `package-lock.json` in the Downloads folder.
+
+## 2026-11-20, step 3, Codex
+
+Branch: `step-3-gtfs`. Implementation and offline verification complete. Step 3 stays Failing because live station-number evidence is still pending. No status was flipped without evidence.
+
+### Changed
+- Added the offline GTFS runner, seven-day ZIP cache, streaming ZIP extraction and streaming CSV parsing. Downloads use the documented 511 regional endpoint over HTTPS and the supplied Marguerite endpoint. Calendar dates and exceptions select a covered mid-January 2027 weekday, or the next covered future Tuesday, with the selected date logged.
+- Counts departures in [07:00, 09:00), computes median gaps rounded to integer minutes, aggregates parent stations, records supported modes and upserts only `transit_stops` in feed transactions. Handles frequency templates at nominal headways and warns about missing departure times.
+- Added pure haversine nearest-stop and service-quality helpers, a hand-written two-stop/three-trip fixture with one calendar exception, and offline tests for CSV chunk boundaries, exceptions, rush boundaries, missing times, frequency expansion, cache reuse, ZIP extraction and repeat upserts.
+- Root changes approved by the user: only the `gtfs` script and `fflate` dependency in package.json, the corresponding lockfile entries, and one `data/gtfs/` ignore line. No provider or database source files changed.
+- Added dependency: `fflate` 0.8.3, for portable streaming ZIP decompression. CSV parsing adds no dependency. npm reported 8 moderate audit findings; no unrelated dependency upgrades were made.
+
+### Commands and output
+Node: `v22.14.0`.
+
+The initial `npm run check` invocation was blocked by PowerShell's unsigned npm.ps1 policy. Using npm.cmd runs the same script successfully.
+
+Baseline, before edits:
+```
+$ npm.cmd run check
+ Test Files  10 passed (10)
+      Tests  65 passed | 1 skipped (66)
+(exit 0)
+```
+
+Final:
+```
+$ npm.cmd run check
+ Test Files  12 passed (12)
+      Tests  80 passed | 1 skipped (81)
+(exit 0)
+
+$ npm.cmd run gtfs
+> tsx scripts/gtfs/run.ts
+Set API_511_TOKEN in the shell environment
+(exit 1)
+
+$ git diff --check
+(no whitespace errors; line-ending notices only)
+(exit 0)
+```
+
+### Assumptions and open risks
+- No .env files or private local settings were opened. API_511_TOKEN is absent from the shell. To finish acceptance, run `npm run gtfs` with that variable supplied and a migrated database, then append both stations' actual numbers and flip only step 3 to Passing. Live feeds, credentials, station-name matching and production feed size remain unverified.
+- Combined platform/direction gaps measure aggregate stop service, not service in a particular commute direction. Simultaneous departures count separately. Missing times stay omitted with a warning; fewer than two departures yields a null headway. Frequency-based service with exact_times=0 uses nominal intervals.
+- Only rail, light rail, bus and Marguerite shuttle are included. Unknown or other modes are excluded. Stops with missing coordinates fail validation rather than acquiring invented locations. Expired feeds with no future covered Tuesday fail explicitly.
+- Downloads follow the current 511 documentation: https://511.org/open-data/transit . GTFS interpretation follows https://gtfs.org/documentation/schedule/reference/ . Extracted temporary files are removed after each feed. No live calls were made and no application data was written during verification.

@@ -5,6 +5,7 @@ data/*.db
 data/*.db-*
 .vercel
 node_modules
+data/gtfs/
 
 # Next.js and TypeScript build output
 /.next/

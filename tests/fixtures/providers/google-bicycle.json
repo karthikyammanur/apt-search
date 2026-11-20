@@ -1,0 +1,57 @@
+{
+  "routes": [
+    {
+      "duration": "547s",
+      "legs": [
+        {
+          "steps": [
+            {
+              "staticDuration": "16s",
+              "travelMode": "BICYCLE"
+            },
+            {
+              "staticDuration": "2s",
+              "travelMode": "BICYCLE"
+            },
+            {
+              "staticDuration": "51s",
+              "travelMode": "BICYCLE"
+            },
+            {
+              "staticDuration": "336s",
+              "travelMode": "BICYCLE"
+            },
+            {
+              "staticDuration": "115s",
+              "travelMode": "BICYCLE"
+            },
+            {
+              "staticDuration": "7s",
+              "travelMode": "BICYCLE"
+            },
+            {
+              "staticDuration": "4s",
+              "travelMode": "BICYCLE"
+            },
+            {
+              "staticDuration": "1s",
+              "travelMode": "BICYCLE"
+            },
+            {
+              "staticDuration": "6s",
+              "travelMode": "BICYCLE"
+            },
+            {
+              "staticDuration": "3s",
+              "travelMode": "BICYCLE"
+            },
+            {
+              "staticDuration": "6s",
+              "travelMode": "BICYCLE"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

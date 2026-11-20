@@ -201,3 +201,64 @@ scripts/gtfs/download.ts      fetch("https://www.zillow.com/feed.zip")
 - I did not test the new deny rules: that would mean trying to read a file I am told never to read. I am also not sure they cover shell commands such as `cat`.
 - A `.env.local` now exists; Next loads it at build and run time and I have not opened it. The e2e overrides `APP_PASSWORD` and `DATABASE_URL`, so it cannot reach whatever database that file names.
 - The risks from the step 1 entry still stand: Node 22.14 is untested, 4 dev-only `npm audit` findings via `drizzle-kit`, and the stray `package-lock.json` in the Downloads folder.
+
+## 2026-11-20, step 2, Codex
+
+Branch: `step-2-providers`. Step 2 is Passing under the assigned prompt's completion criteria: offline checks pass, the smoke runner prints a result or clear disabled/error line for every requested provider, and the Google Demo Key returned a TRANSIT route. The older task text mentions TravelTime; the assigned prompt explicitly replaces that backup with Transitland and forbids a TravelTime client.
+
+Changed:
+- Added a shared Zod-validated cached transport using `api_cache`, hashed request identities, per-provider process rate budgets, Retry-After cooldowns, a single 5xx retry, timeouts and typed failures. Google daily quota pauses persist for 24 hours; cache hits still work during pauses. OAuth tokens use memory-only caching.
+- Added Google Routes, Places Nearby and Geocoding v4, Transitland arrive-by routing, Geoapify geocoding and walk/bicycle routing, Overpass POIs, SUPost housing searches, optional RentCast long-term radius searches and read-only Gmail OAuth/message retrieval. Blank credentials return disabled. Gmail includes nested plain-text/HTML MIME decoding and read-only text-body attachment retrieval.
+- Added route/geocode fallback helpers that report the answering provider, recorded and sanitized public response fixtures, and 35 provider tests. No costs, scores or listing extraction logic was added.
+- Replaced only the package.json smoke command with `tsx scripts/smoke.ts`. The runner uses Next's environment loader and example settings, prints a status per API operation, and explicitly checks for a Google TRANSIT step. Its optional `--record` mode excludes Gmail data and credentials.
+- Added usage, official contract links and limitations under the owned provider/test folders. No packages or lockfile changes.
+
+Commands and evidence:
+
+The initial `npm run check` attempt was blocked by PowerShell's unsigned npm.ps1 launcher. Used npm.cmd without changing execution policy. Sandboxed Node commands sometimes stalled; standalone checks outside the sandbox completed normally.
+
+```text
+$ npm.cmd run check  (baseline, before edits)
+ Test Files  10 passed (10)
+      Tests  65 passed | 1 skipped (66)
+(exit 0)
+
+$ npm.cmd run smoke -- --record
+> tsx scripts/smoke.ts --record
+google-geocode: ok
+geoapify-geocode: disabled
+google-transit: ok
+Google Demo Key TRANSIT route: YES
+google-walk: ok
+google-bicycle: ok
+google-places: ok
+transitland: ok
+geoapify-walk: disabled
+geoapify-bicycle: disabled
+overpass: network
+supost: ok
+rentcast: disabled
+gmail-list: disabled
+gmail-message: skipped (no message ID available)
+(exit 0)
+
+$ npm.cmd run check  (final implementation)
+> tsc --noEmit && eslint . && vitest run
+ Test Files  11 passed (11)
+      Tests  100 passed | 1 skipped (101)
+(exit 0, no lint warnings)
+
+$ git diff --check
+(no whitespace errors; Git printed LF/CRLF conversion notices)
+(exit 0)
+```
+
+Validation covers persistent cache hits and expiry, corrupt-cache recovery, Zod rejection, quota-paused fallback and persistence, blank-key fallback, all recorded Google operations, Transitland California arrive-by parameters, SUPost supported searches, retry bounds, HTTP failures, Retry-After, concurrent request budgets, memory-only cache privacy and null unknown values. Test transports use recorded fixtures and injected failures, with an in-memory migrated database and no live API calls.
+
+Assumptions and open risks:
+- Live success: all five Google operations, Transitland and SUPost. The Demo Key supports transit for the tested example route. Overpass returned network; no conclusion about service availability or POI coverage follows from that probe.
+- Geoapify, RentCast and Gmail were disabled by blank loaded credentials. Their successful payload handling still needs live verification. No successful response recordings were fabricated for them. Fallback selection tests use normalized recorded Google results as backup-client stubs; they do not claim live Geoapify coverage. Gmail tokens and mailbox content are never recorded by smoke.
+- SUPost's current public OpenAPI supports housing category and full-text search, but no subcategory parameter and no listing-body field. The client exposes separate room/share/sublet searches using supported parameters. These may overlap and cannot guarantee exact subcategory membership. No listing pages were fetched.
+- Minute budgets are per running process, not distributed across Vercel instances. Daily Google pauses are persisted and shared through the database. Simultaneous identical cache misses can consume multiple calls. These limits and cache TTLs are conservative prototype defaults.
+- The smoke runner intentionally exits successfully when providers return typed disabled/error results, matching the assigned completion criteria. Read the printed lines for live health.
+- Only step-owned implementation files, the smoke script line and the explicitly required progress/status updates were changed. The pre-existing edit to prompts/step-2-providers.md is left untouched and excluded from the commit. No environment files or local settings were opened directly; Next's standard loader initializes the smoke process.

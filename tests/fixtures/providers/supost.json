@@ -1,0 +1,505 @@
+{
+  "listings": [
+    {
+      "category": "housing",
+      "stanford_verified": true,
+      "id": 1,
+      "title": "Sanitized housing listing",
+      "price": null,
+      "created_at": null,
+      "url": "https://supost.com/post/example-1",
+      "poster_email_domain": null
+    },
+    {
+      "category": "housing",
+      "stanford_verified": true,
+      "id": 2,
+      "title": "Sanitized housing listing",
+      "price": null,
+      "created_at": null,
+      "url": "https://supost.com/post/example-2",
+      "poster_email_domain": null
+    },
+    {
+      "category": "housing",
+      "stanford_verified": true,
+      "id": 3,
+      "title": "Sanitized housing listing",
+      "price": null,
+      "created_at": null,
+      "url": "https://supost.com/post/example-3",
+      "poster_email_domain": null
+    },
+    {
+      "category": "housing",
+      "stanford_verified": false,
+      "id": 4,
+      "title": "Sanitized housing listing",
+      "price": null,
+      "created_at": null,
+      "url": "https://supost.com/post/example-4",
+      "poster_email_domain": null
+    },
+    {
+      "category": "housing",
+      "stanford_verified": true,
+      "id": 5,
+      "title": "Sanitized housing listing",
+      "price": null,
+      "created_at": null,
+      "url": "https://supost.com/post/example-5",
+      "poster_email_domain": null
+    },
+    {
+      "category": "housing",
+      "stanford_verified": true,
+      "id": 6,
+      "title": "Sanitized housing listing",
+      "price": null,
+      "created_at": null,
+      "url": "https://supost.com/post/example-6",
+      "poster_email_domain": null
+    },
+    {
+      "category": "housing",
+      "stanford_verified": true,
+      "id": 7,
+      "title": "Sanitized housing listing",
+      "price": null,
+      "created_at": null,
+      "url": "https://supost.com/post/example-7",
+      "poster_email_domain": null
+    },
+    {
+      "category": "housing",
+      "stanford_verified": true,
+      "id": 8,
+      "title": "Sanitized housing listing",
+      "price": null,
+      "created_at": null,
+      "url": "https://supost.com/post/example-8",
+      "poster_email_domain": null
+    },
+    {
+      "category": "housing",
+      "stanford_verified": false,
+      "id": 9,
+      "title": "Sanitized housing listing",
+      "price": null,
+      "created_at": null,
+      "url": "https://supost.com/post/example-9",
+      "poster_email_domain": null
+    },
+    {
+      "category": "housing",
+      "stanford_verified": true,
+      "id": 10,
+      "title": "Sanitized housing listing",
+      "price": null,
+      "created_at": null,
+      "url": "https://supost.com/post/example-10",
+      "poster_email_domain": null
+    },
+    {
+      "category": "housing",
+      "stanford_verified": true,
+      "id": 11,
+      "title": "Sanitized housing listing",
+      "price": null,
+      "created_at": null,
+      "url": "https://supost.com/post/example-11",
+      "poster_email_domain": null
+    },
+    {
+      "category": "housing",
+      "stanford_verified": true,
+      "id": 12,
+      "title": "Sanitized housing listing",
+      "price": null,
+      "created_at": null,
+      "url": "https://supost.com/post/example-12",
+      "poster_email_domain": null
+    },
+    {
+      "category": "housing",
+      "stanford_verified": false,
+      "id": 13,
+      "title": "Sanitized housing listing",
+      "price": null,
+      "created_at": null,
+      "url": "https://supost.com/post/example-13",
+      "poster_email_domain": null
+    },
+    {
+      "category": "housing",
+      "stanford_verified": true,
+      "id": 14,
+      "title": "Sanitized housing listing",
+      "price": null,
+      "created_at": null,
+      "url": "https://supost.com/post/example-14",
+      "poster_email_domain": null
+    },
+    {
+      "category": "housing",
+      "stanford_verified": true,
+      "id": 15,
+      "title": "Sanitized housing listing",
+      "price": null,
+      "created_at": null,
+      "url": "https://supost.com/post/example-15",
+      "poster_email_domain": null
+    },
+    {
+      "category": "housing",
+      "stanford_verified": true,
+      "id": 16,
+      "title": "Sanitized housing listing",
+      "price": null,
+      "created_at": null,
+      "url": "https://supost.com/post/example-16",
+      "poster_email_domain": null
+    },
+    {
+      "category": "housing",
+      "stanford_verified": true,
+      "id": 17,
+      "title": "Sanitized housing listing",
+      "price": null,
+      "created_at": null,
+      "url": "https://supost.com/post/example-17",
+      "poster_email_domain": null
+    },
+    {
+      "category": "housing",
+      "stanford_verified": true,
+      "id": 18,
+      "title": "Sanitized housing listing",
+      "price": null,
+      "created_at": null,
+      "url": "https://supost.com/post/example-18",
+      "poster_email_domain": null
+    },
+    {
+      "category": "housing",
+      "stanford_verified": true,
+      "id": 19,
+      "title": "Sanitized housing listing",
+      "price": null,
+      "created_at": null,
+      "url": "https://supost.com/post/example-19",
+      "poster_email_domain": null
+    },
+    {
+      "category": "housing",
+      "stanford_verified": true,
+      "id": 20,
+      "title": "Sanitized housing listing",
+      "price": null,
+      "created_at": null,
+      "url": "https://supost.com/post/example-20",
+      "poster_email_domain": null
+    },
+    {
+      "category": "housing",
+      "stanford_verified": true,
+      "id": 21,
+      "title": "Sanitized housing listing",
+      "price": null,
+      "created_at": null,
+      "url": "https://supost.com/post/example-21",
+      "poster_email_domain": null
+    },
+    {
+      "category": "housing",
+      "stanford_verified": true,
+      "id": 22,
+      "title": "Sanitized housing listing",
+      "price": null,
+      "created_at": null,
+      "url": "https://supost.com/post/example-22",
+      "poster_email_domain": null
+    },
+    {
+      "category": "housing",
+      "stanford_verified": true,
+      "id": 23,
+      "title": "Sanitized housing listing",
+      "price": null,
+      "created_at": null,
+      "url": "https://supost.com/post/example-23",
+      "poster_email_domain": null
+    },
+    {
+      "category": "housing",
+      "stanford_verified": true,
+      "id": 24,
+      "title": "Sanitized housing listing",
+      "price": null,
+      "created_at": null,
+      "url": "https://supost.com/post/example-24",
+      "poster_email_domain": null
+    },
+    {
+      "category": "housing",
+      "stanford_verified": true,
+      "id": 25,
+      "title": "Sanitized housing listing",
+      "price": null,
+      "created_at": null,
+      "url": "https://supost.com/post/example-25",
+      "poster_email_domain": null
+    },
+    {
+      "category": "housing",
+      "stanford_verified": true,
+      "id": 26,
+      "title": "Sanitized housing listing",
+      "price": null,
+      "created_at": null,
+      "url": "https://supost.com/post/example-26",
+      "poster_email_domain": null
+    },
+    {
+      "category": "housing",
+      "stanford_verified": true,
+      "id": 27,
+      "title": "Sanitized housing listing",
+      "price": null,
+      "created_at": null,
+      "url": "https://supost.com/post/example-27",
+      "poster_email_domain": null
+    },
+    {
+      "category": "housing",
+      "stanford_verified": true,
+      "id": 28,
+      "title": "Sanitized housing listing",
+      "price": null,
+      "created_at": null,
+      "url": "https://supost.com/post/example-28",
+      "poster_email_domain": null
+    },
+    {
+      "category": "housing",
+      "stanford_verified": true,
+      "id": 29,
+      "title": "Sanitized housing listing",
+      "price": null,
+      "created_at": null,
+      "url": "https://supost.com/post/example-29",
+      "poster_email_domain": null
+    },
+    {
+      "category": "housing",
+      "stanford_verified": true,
+      "id": 30,
+      "title": "Sanitized housing listing",
+      "price": null,
+      "created_at": null,
+      "url": "https://supost.com/post/example-30",
+      "poster_email_domain": null
+    },
+    {
+      "category": "housing",
+      "stanford_verified": true,
+      "id": 31,
+      "title": "Sanitized housing listing",
+      "price": null,
+      "created_at": null,
+      "url": "https://supost.com/post/example-31",
+      "poster_email_domain": null
+    },
+    {
+      "category": "housing",
+      "stanford_verified": true,
+      "id": 32,
+      "title": "Sanitized housing listing",
+      "price": null,
+      "created_at": null,
+      "url": "https://supost.com/post/example-32",
+      "poster_email_domain": null
+    },
+    {
+      "category": "housing",
+      "stanford_verified": true,
+      "id": 33,
+      "title": "Sanitized housing listing",
+      "price": null,
+      "created_at": null,
+      "url": "https://supost.com/post/example-33",
+      "poster_email_domain": null
+    },
+    {
+      "category": "housing",
+      "stanford_verified": true,
+      "id": 34,
+      "title": "Sanitized housing listing",
+      "price": null,
+      "created_at": null,
+      "url": "https://supost.com/post/example-34",
+      "poster_email_domain": null
+    },
+    {
+      "category": "housing",
+      "stanford_verified": true,
+      "id": 35,
+      "title": "Sanitized housing listing",
+      "price": null,
+      "created_at": null,
+      "url": "https://supost.com/post/example-35",
+      "poster_email_domain": null
+    },
+    {
+      "category": "housing",
+      "stanford_verified": true,
+      "id": 36,
+      "title": "Sanitized housing listing",
+      "price": null,
+      "created_at": null,
+      "url": "https://supost.com/post/example-36",
+      "poster_email_domain": null
+    },
+    {
+      "category": "housing",
+      "stanford_verified": true,
+      "id": 37,
+      "title": "Sanitized housing listing",
+      "price": null,
+      "created_at": null,
+      "url": "https://supost.com/post/example-37",
+      "poster_email_domain": null
+    },
+    {
+      "category": "housing",
+      "stanford_verified": true,
+      "id": 38,
+      "title": "Sanitized housing listing",
+      "price": null,
+      "created_at": null,
+      "url": "https://supost.com/post/example-38",
+      "poster_email_domain": null
+    },
+    {
+      "category": "housing",
+      "stanford_verified": true,
+      "id": 39,
+      "title": "Sanitized housing listing",
+      "price": null,
+      "created_at": null,
+      "url": "https://supost.com/post/example-39",
+      "poster_email_domain": null
+    },
+    {
+      "category": "housing",
+      "stanford_verified": true,
+      "id": 40,
+      "title": "Sanitized housing listing",
+      "price": null,
+      "created_at": null,
+      "url": "https://supost.com/post/example-40",
+      "poster_email_domain": null
+    },
+    {
+      "category": "housing",
+      "stanford_verified": true,
+      "id": 41,
+      "title": "Sanitized housing listing",
+      "price": null,
+      "created_at": null,
+      "url": "https://supost.com/post/example-41",
+      "poster_email_domain": null
+    },
+    {
+      "category": "housing",
+      "stanford_verified": true,
+      "id": 42,
+      "title": "Sanitized housing listing",
+      "price": null,
+      "created_at": null,
+      "url": "https://supost.com/post/example-42",
+      "poster_email_domain": null
+    },
+    {
+      "category": "housing",
+      "stanford_verified": true,
+      "id": 43,
+      "title": "Sanitized housing listing",
+      "price": null,
+      "created_at": null,
+      "url": "https://supost.com/post/example-43",
+      "poster_email_domain": null
+    },
+    {
+      "category": "housing",
+      "stanford_verified": true,
+      "id": 44,
+      "title": "Sanitized housing listing",
+      "price": null,
+      "created_at": null,
+      "url": "https://supost.com/post/example-44",
+      "poster_email_domain": null
+    },
+    {
+      "category": "housing",
+      "stanford_verified": false,
+      "id": 45,
+      "title": "Sanitized housing listing",
+      "price": null,
+      "created_at": null,
+      "url": "https://supost.com/post/example-45",
+      "poster_email_domain": null
+    },
+    {
+      "category": "housing",
+      "stanford_verified": true,
+      "id": 46,
+      "title": "Sanitized housing listing",
+      "price": null,
+      "created_at": null,
+      "url": "https://supost.com/post/example-46",
+      "poster_email_domain": null
+    },
+    {
+      "category": "housing",
+      "stanford_verified": true,
+      "id": 47,
+      "title": "Sanitized housing listing",
+      "price": null,
+      "created_at": null,
+      "url": "https://supost.com/post/example-47",
+      "poster_email_domain": null
+    },
+    {
+      "category": "housing",
+      "stanford_verified": true,
+      "id": 48,
+      "title": "Sanitized housing listing",
+      "price": null,
+      "created_at": null,
+      "url": "https://supost.com/post/example-48",
+      "poster_email_domain": null
+    },
+    {
+      "category": "housing",
+      "stanford_verified": true,
+      "id": 49,
+      "title": "Sanitized housing listing",
+      "price": null,
+      "created_at": null,
+      "url": "https://supost.com/post/example-49",
+      "poster_email_domain": null
+    },
+    {
+      "category": "housing",
+      "stanford_verified": true,
+      "id": 50,
+      "title": "Sanitized housing listing",
+      "price": null,
+      "created_at": null,
+      "url": "https://supost.com/post/example-50",
+      "poster_email_domain": null
+    }
+  ],
+  "next_cursor": null
+}

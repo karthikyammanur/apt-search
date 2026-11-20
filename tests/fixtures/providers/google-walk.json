@@ -1,0 +1,29 @@
+{
+  "routes": [
+    {
+      "duration": "2183s",
+      "legs": [
+        {
+          "steps": [
+            {
+              "staticDuration": "67s",
+              "travelMode": "WALK"
+            },
+            {
+              "staticDuration": "59s",
+              "travelMode": "WALK"
+            },
+            {
+              "staticDuration": "1809s",
+              "travelMode": "WALK"
+            },
+            {
+              "staticDuration": "248s",
+              "travelMode": "WALK"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

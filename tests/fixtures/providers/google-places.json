@@ -1,0 +1,459 @@
+{
+  "places": [
+    {
+      "id": "ChIJOdKVDTu7j4ARAWS1bVZzzz8",
+      "displayName": {
+        "text": "Whole Foods Market"
+      },
+      "location": {
+        "latitude": 37.4421555,
+        "longitude": -122.15934170000001
+      },
+      "types": [
+        "grocery_store",
+        "health_food_store",
+        "deli",
+        "market",
+        "food_delivery",
+        "bakery",
+        "health",
+        "point_of_interest",
+        "supermarket",
+        "food_store",
+        "store",
+        "food",
+        "establishment"
+      ],
+      "rating": 4.3
+    },
+    {
+      "id": "ChIJHz4XFiW7j4ARCIp120CAcFE",
+      "displayName": {
+        "text": "Trader Joe's"
+      },
+      "location": {
+        "latitude": 37.438477899999995,
+        "longitude": -122.1576574
+      },
+      "types": [
+        "grocery_store",
+        "health_food_store",
+        "liquor_store",
+        "market",
+        "health",
+        "point_of_interest",
+        "supermarket",
+        "food_store",
+        "store",
+        "food",
+        "establishment"
+      ],
+      "rating": 4.6
+    },
+    {
+      "id": "ChIJBdKGLQC7j4ARB0fDPx7bHrk",
+      "displayName": {
+        "text": "Maruwu Seicha - Palo Alto"
+      },
+      "location": {
+        "latitude": 37.4453204,
+        "longitude": -122.161961
+      },
+      "types": [
+        "tea_house",
+        "tea_store",
+        "cafe",
+        "point_of_interest",
+        "food_store",
+        "store",
+        "food",
+        "establishment"
+      ],
+      "rating": 4
+    },
+    {
+      "id": "ChIJIdyPATq7j4ARMGiI0FBTjos",
+      "displayName": {
+        "text": "Verve Coffee Roasters"
+      },
+      "location": {
+        "latitude": 37.4442151,
+        "longitude": -122.1630528
+      },
+      "types": [
+        "coffee_shop",
+        "cafe",
+        "point_of_interest",
+        "food_store",
+        "store",
+        "food",
+        "establishment"
+      ],
+      "rating": 4.4
+    },
+    {
+      "id": "ChIJgSKtATq7j4AR1LVZ7VN8W3I",
+      "displayName": {
+        "text": "Sweet Maple"
+      },
+      "location": {
+        "latitude": 37.443996999999996,
+        "longitude": -122.162979
+      },
+      "types": [
+        "brunch_restaurant",
+        "breakfast_restaurant",
+        "cafe",
+        "diner",
+        "californian_restaurant",
+        "american_restaurant",
+        "restaurant",
+        "point_of_interest",
+        "food",
+        "establishment"
+      ],
+      "rating": 4.4
+    },
+    {
+      "id": "ChIJ9yKdHTm7j4ARaQE90yfRDmM",
+      "displayName": {
+        "text": "Blue Bottle Coffee"
+      },
+      "location": {
+        "latitude": 37.448929199999995,
+        "longitude": -122.15917069999999
+      },
+      "types": [
+        "coffee_shop",
+        "cafe",
+        "point_of_interest",
+        "food_store",
+        "store",
+        "food",
+        "establishment"
+      ],
+      "rating": 4.4
+    },
+    {
+      "id": "ChIJlcwEXzq7j4ARcTuyVs0riyM",
+      "displayName": {
+        "text": "Philz Coffee"
+      },
+      "location": {
+        "latitude": 37.442132199999996,
+        "longitude": -122.1616478
+      },
+      "types": [
+        "coffee_shop",
+        "cafe",
+        "point_of_interest",
+        "food_store",
+        "store",
+        "food",
+        "establishment"
+      ],
+      "rating": 4.5
+    },
+    {
+      "id": "ChIJkb6X_zi7j4ARKwExaaqqq2A",
+      "displayName": {
+        "text": "Cafe Venetia"
+      },
+      "location": {
+        "latitude": 37.4474922,
+        "longitude": -122.16037980000002
+      },
+      "types": [
+        "wine_bar",
+        "coffee_shop",
+        "cafe",
+        "bar",
+        "point_of_interest",
+        "food_store",
+        "store",
+        "food",
+        "establishment"
+      ],
+      "rating": 4.3
+    },
+    {
+      "id": "ChIJl-bWHF67j4ARikzQEQ1K8k8",
+      "displayName": {
+        "text": "Blue Bottle Coffee"
+      },
+      "location": {
+        "latitude": 37.4447264,
+        "longitude": -122.17132239999998
+      },
+      "types": [
+        "coffee_shop",
+        "cafe",
+        "point_of_interest",
+        "food_store",
+        "store",
+        "food",
+        "establishment"
+      ],
+      "rating": 4.1
+    },
+    {
+      "id": "ChIJY5UIijm7j4ARPkLgY0DXJuI",
+      "displayName": {
+        "text": "Coupa Cafe - Ramona"
+      },
+      "location": {
+        "latitude": 37.444609199999995,
+        "longitude": -122.16152839999998
+      },
+      "types": [
+        "cafe",
+        "coffee_shop",
+        "restaurant",
+        "point_of_interest",
+        "food_store",
+        "store",
+        "food",
+        "establishment"
+      ],
+      "rating": 4.3
+    },
+    {
+      "id": "ChIJg5JmqDm7j4ARxxy2NX7uuIQ",
+      "displayName": {
+        "text": "Starbucks Coffee Company"
+      },
+      "location": {
+        "latitude": 37.444379999999995,
+        "longitude": -122.16342
+      },
+      "types": [
+        "coffee_shop",
+        "internet_cafe",
+        "breakfast_restaurant",
+        "cafe",
+        "service",
+        "restaurant",
+        "point_of_interest",
+        "food_store",
+        "store",
+        "food",
+        "establishment"
+      ],
+      "rating": 4
+    },
+    {
+      "id": "ChIJ0wzVVCC7j4ARETETP1JS-5M",
+      "displayName": {
+        "text": "Oklava Cafe"
+      },
+      "location": {
+        "latitude": 37.4449633,
+        "longitude": -122.1628192
+      },
+      "types": [
+        "cafe",
+        "breakfast_restaurant",
+        "coffee_shop",
+        "turkish_restaurant",
+        "dessert_shop",
+        "confectionery",
+        "bakery",
+        "restaurant",
+        "point_of_interest",
+        "food_store",
+        "store",
+        "food",
+        "establishment"
+      ],
+      "rating": 4.6
+    },
+    {
+      "id": "ChIJhXcepTW7j4ARkdzoQMZEBoU",
+      "displayName": {
+        "text": "McDonald's"
+      },
+      "location": {
+        "latitude": 37.4426808,
+        "longitude": -122.1705781
+      },
+      "types": [
+        "fast_food_restaurant",
+        "hamburger_restaurant",
+        "breakfast_restaurant",
+        "coffee_shop",
+        "cafe",
+        "american_restaurant",
+        "sandwich_shop",
+        "restaurant",
+        "point_of_interest",
+        "food_store",
+        "store",
+        "food",
+        "establishment"
+      ],
+      "rating": 3.7
+    },
+    {
+      "id": "ChIJsZcXp567j4ARNsTPkagaTZg",
+      "displayName": {
+        "text": "Barry's Palo Alto"
+      },
+      "location": {
+        "latitude": 37.4425039,
+        "longitude": -122.1710128
+      },
+      "types": [
+        "fitness_center",
+        "gym",
+        "juice_shop",
+        "sports_activity_location",
+        "health",
+        "point_of_interest",
+        "food",
+        "establishment"
+      ],
+      "rating": 4.5
+    },
+    {
+      "id": "ChIJHz4XFiW7j4ARn0Db50n4L2k",
+      "displayName": {
+        "text": "Douce France"
+      },
+      "location": {
+        "latitude": 37.4389992,
+        "longitude": -122.1588592
+      },
+      "types": [
+        "french_restaurant",
+        "breakfast_restaurant",
+        "coffee_shop",
+        "cafe",
+        "bakery",
+        "european_restaurant",
+        "restaurant",
+        "point_of_interest",
+        "food_store",
+        "store",
+        "food",
+        "establishment"
+      ],
+      "rating": 4.5
+    },
+    {
+      "id": "ChIJK7u-fDi7j4ARObxmEVWASuE",
+      "displayName": {
+        "text": "Mademoiselle Colette"
+      },
+      "location": {
+        "latitude": 37.449140899999996,
+        "longitude": -122.1607321
+      },
+      "types": [
+        "bakery",
+        "coffee_shop",
+        "cafe",
+        "restaurant",
+        "point_of_interest",
+        "food_store",
+        "store",
+        "food",
+        "establishment"
+      ],
+      "rating": 4.3
+    },
+    {
+      "id": "ChIJe_8_gFikj4ARcKaP6JJ1JUA",
+      "displayName": {
+        "text": "Peet's Coffee"
+      },
+      "location": {
+        "latitude": 37.438064,
+        "longitude": -122.1593041
+      },
+      "types": [
+        "coffee_shop",
+        "cafe",
+        "point_of_interest",
+        "food_store",
+        "store",
+        "food",
+        "establishment"
+      ],
+      "rating": 4.5
+    },
+    {
+      "id": "ChIJo6mcRDi7j4ARKmAXDyLTnUE",
+      "displayName": {
+        "text": "7-Eleven"
+      },
+      "location": {
+        "latitude": 37.4480147,
+        "longitude": -122.1611892
+      },
+      "types": [
+        "convenience_store",
+        "coffee_shop",
+        "cafe",
+        "liquor_store",
+        "pizza_restaurant",
+        "restaurant",
+        "point_of_interest",
+        "food_store",
+        "store",
+        "food",
+        "establishment"
+      ],
+      "rating": 3.1
+    },
+    {
+      "id": "ChIJaeHk_jm7j4ARZfXh674aljg",
+      "displayName": {
+        "text": "Sprout Cafe"
+      },
+      "location": {
+        "latitude": 37.444269399999996,
+        "longitude": -122.16286670000001
+      },
+      "types": [
+        "brunch_restaurant",
+        "breakfast_restaurant",
+        "coffee_shop",
+        "cafe",
+        "vegetarian_restaurant",
+        "sandwich_shop",
+        "salad_shop",
+        "pastry_shop",
+        "dessert_shop",
+        "confectionery",
+        "bakery",
+        "restaurant",
+        "point_of_interest",
+        "food_store",
+        "store",
+        "food",
+        "establishment"
+      ],
+      "rating": 4.5
+    },
+    {
+      "id": "ChIJ2UQqo1C7j4ARjdsBsUIpWQA",
+      "displayName": {
+        "text": "CorePower Yoga - Palo Alto Town & Country"
+      },
+      "location": {
+        "latitude": 37.439008799999996,
+        "longitude": -122.15879450000001
+      },
+      "types": [
+        "yoga_studio",
+        "fitness_center",
+        "gym",
+        "sports_activity_location",
+        "health",
+        "point_of_interest",
+        "establishment"
+      ],
+      "rating": 4
+    }
+  ]
+}

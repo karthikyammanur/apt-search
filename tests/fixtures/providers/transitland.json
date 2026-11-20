@@ -1,0 +1,25 @@
+{
+  "plan": {
+    "itineraries": [
+      {
+        "duration": 1624,
+        "legs": [
+          {
+            "mode": "WALK",
+            "duration": 660
+          },
+          {
+            "mode": "BUS",
+            "duration": 420,
+            "routeShortName": "Rapid 522",
+            "routeLongName": "Palo Alto TC - Eastridge Rapid"
+          },
+          {
+            "mode": "WALK",
+            "duration": 544
+          }
+        ]
+      }
+    ]
+  }
+}

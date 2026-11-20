@@ -1,0 +1,107 @@
+{
+  "routes": [
+    {
+      "duration": "1614s",
+      "legs": [
+        {
+          "steps": [
+            {
+              "staticDuration": "34s",
+              "travelMode": "WALK"
+            },
+            {
+              "staticDuration": "6s",
+              "travelMode": "WALK"
+            },
+            {
+              "staticDuration": "123s",
+              "travelMode": "WALK"
+            },
+            {
+              "staticDuration": "294s",
+              "travelMode": "WALK"
+            },
+            {
+              "staticDuration": "23s",
+              "travelMode": "WALK"
+            },
+            {
+              "staticDuration": "420s",
+              "travelMode": "TRANSIT",
+              "transitDetails": {
+                "transitLine": {
+                  "name": "Palo Alto TC - Eastridge Rapid",
+                  "nameShort": "Rapid 522"
+                }
+              }
+            },
+            {
+              "staticDuration": "21s",
+              "travelMode": "WALK"
+            },
+            {
+              "staticDuration": "14s",
+              "travelMode": "WALK"
+            },
+            {
+              "staticDuration": "28s",
+              "travelMode": "WALK"
+            },
+            {
+              "staticDuration": "27s",
+              "travelMode": "WALK"
+            },
+            {
+              "staticDuration": "7s",
+              "travelMode": "WALK"
+            },
+            {
+              "staticDuration": "23s",
+              "travelMode": "WALK"
+            },
+            {
+              "staticDuration": "45s",
+              "travelMode": "WALK"
+            },
+            {
+              "staticDuration": "36s",
+              "travelMode": "WALK"
+            },
+            {
+              "staticDuration": "15s",
+              "travelMode": "WALK"
+            },
+            {
+              "staticDuration": "64s",
+              "travelMode": "WALK"
+            },
+            {
+              "staticDuration": "176s",
+              "travelMode": "WALK"
+            },
+            {
+              "staticDuration": "138s",
+              "travelMode": "WALK"
+            },
+            {
+              "staticDuration": "44s",
+              "travelMode": "WALK"
+            },
+            {
+              "staticDuration": "27s",
+              "travelMode": "WALK"
+            },
+            {
+              "staticDuration": "14s",
+              "travelMode": "WALK"
+            },
+            {
+              "staticDuration": "34s",
+              "travelMode": "WALK"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

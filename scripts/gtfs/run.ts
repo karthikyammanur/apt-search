@@ -4,14 +4,12 @@ import { createDb } from "../../src/db";
 import { compute } from "./compute";
 import { download, extract, FEEDS } from "./download";
 import { upsertStops } from "./store";
+import { SUMMARY_STATIONS } from "./summary";
 
 async function main() {
   await mkdir("data/gtfs", { recursive: true });
   const db = createDb();
-  const stations = [
-    { label: "California Ave Caltrain", pattern: /california (ave|avenue)/i },
-    { label: "Palo Alto Transit Center", pattern: /palo alto( transit| caltrain| station|$)/i },
-  ];
+  const stations = SUMMARY_STATIONS;
   const found = new Set<string>();
   for (const feed of FEEDS) {
     const zip = await download(feed);
@@ -29,7 +27,7 @@ async function main() {
       await upsertStops(db, result.stops);
       for (const station of stations) {
         for (const stop of result.stops.filter((s) => station.pattern.test(s.name))) {
-          if (station.label === "California Ave Caltrain" && !stop.modes.includes("rail")) continue;
+          if (station.requiredMode && !stop.modes.includes(station.requiredMode)) continue;
           found.add(station.label);
           console.log(
             `${station.label}: ${feed}/${stop.stopId} ${stop.name}: ${stop.weekdayRushDepartures} rush-hour departures; median gap ${stop.medianRushHeadwayMin === null ? "Unknown" : `${stop.medianRushHeadwayMin} min`}; modes ${stop.modes.join(", ") || "Unknown"}`,

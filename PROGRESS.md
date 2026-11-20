@@ -248,3 +248,46 @@ $ git diff --check
 - Combined platform/direction gaps measure aggregate stop service, not service in a particular commute direction. Simultaneous departures count separately. Missing times stay omitted with a warning; fewer than two departures yields a null headway. Frequency-based service with exact_times=0 uses nominal intervals.
 - Only rail, light rail, bus and Marguerite shuttle are included. Unknown or other modes are excluded. Stops with missing coordinates fail validation rather than acquiring invented locations. Expired feeds with no future covered Tuesday fail explicitly.
 - Downloads follow the current 511 documentation: https://511.org/open-data/transit . GTFS interpretation follows https://gtfs.org/documentation/schedule/reference/ . Extracted temporary files are removed after each feed. No live calls were made and no application data was written during verification.
+
+## 2026-11-20, step 3 live verification, Codex
+
+The user explicitly authorized loading `.env.local` for this run without displaying its contents. Loaded it through Node's `--env-file` flag. No secrets or private configuration values were printed or committed. Geoapify is not used by this step.
+
+### Changed
+- Tightened station summary matching after the first live run incorrectly labeled the unrelated stop `On Clark Way @ Vi At Palo Alto` as Palo Alto Transit Center. Added a regression test and support for the `Transit Ctr` spelling.
+- Step 3 is now Passing based on the fixture checks and live evidence below. Only step 3's status changed in TASKS.md.
+
+### Commands and evidence
+The initial network attempt was blocked by the sandbox. Retried with approved network access. Both official ZIPs downloaded and validated successfully. The corrected verification below reused the seven-day cache with no further downloads.
+
+```
+$ node --env-file=.env.local --import tsx scripts/gtfs/run.ts
+511: using ZIP cached less than 7 days ago
+511: service date 2027-01-12; weekday 07:00 inclusive to 09:00 exclusive; 20407 stops
+511: WARNING 6105 active stop times lack departure times and were omitted
+California Ave Caltrain: 511/california_ave California Avenue: 12 rush-hour departures; median gap 10 min; modes rail
+California Ave Caltrain: 511/70191 California Avenue Caltrain Station Northbound: 6 rush-hour departures; median gap 15 min; modes rail
+California Ave Caltrain: 511/70192 California Avenue Caltrain Station Southbound: 6 rush-hour departures; median gap 15 min; modes rail
+Palo Alto Transit Center: 511/mtc:palo-alto-station Palo Alto Station: 16 rush-hour departures; median gap 4 min; modes rail
+Palo Alto Transit Center: 511/70172 Palo Alto Caltrain Station Southbound: 8 rush-hour departures; median gap 15 min; modes rail
+Palo Alto Transit Center: 511/70171 Palo Alto Caltrain Station Northbound: 8 rush-hour departures; median gap 15 min; modes rail
+marguerite: using ZIP cached less than 7 days ago
+marguerite: service date 2027-01-12; weekday 07:00 inclusive to 09:00 exclusive; 185 stops
+(exit 0; selected station output shown)
+
+$ npm.cmd run check
+ Test Files  12 passed (12)
+      Tests  81 passed | 1 skipped (82)
+(exit 0)
+
+$ git diff --check
+(no whitespace errors; line-ending notices only)
+(exit 0)
+```
+
+The `gtfs` npm script invokes the same `tsx scripts/gtfs/run.ts` entrypoint. The Node command above additionally loads the user-authorized local environment without changing package.json or permanent environment-loading behavior. Both feeds were upserted successfully, writing only `transit_stops`.
+
+### Remaining limitations
+- The 511 feed has 6,105 active records without departure times. These are omitted with a warning, so affected stop counts can be incomplete.
+- The station summaries above are combined rail-platform service. The separately printed bus-bay records have zero counted departures and Unknown median gaps on the selected date. Those results do not establish future bus availability outside the supplied service calendars. The Marguerite feed uses other stop names and contributes no matching station-summary records.
+- The previous entry's missing-token and unverified-live-run blockers are resolved. No dependencies were added in this follow-up.

@@ -2,8 +2,15 @@ import { describe, expect, it } from "vitest";
 import { nearestStops, serviceQuality } from "../../src/lib/transit";
 import { activeServices, chooseDate, compute } from "../../scripts/gtfs/compute";
 import { csvRecords } from "../../scripts/gtfs/csv";
+import { SUMMARY_STATIONS } from "../../scripts/gtfs/summary";
 
 describe("GTFS", () => {
+  it("excludes unrelated Palo Alto stops from the station summary", () => {
+    const paloAlto = SUMMARY_STATIONS[1];
+    expect(paloAlto.pattern.test("On Clark Way @ Vi At Palo Alto")).toBe(false);
+    expect(paloAlto.pattern.test("Palo Alto Transit Ctr-Bay 5")).toBe(true);
+    expect(paloAlto.pattern.test("Palo Alto Caltrain Station Southbound")).toBe(true);
+  });
   it("computes counts, median gaps, modes and calendar exception from fixture", async () => {
     const result = await compute(
       "tests/fixtures/gtfs",

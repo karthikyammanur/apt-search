@@ -19,3 +19,5 @@ next-env.d.ts
 /test-results/
 /blob-report/
 /playwright/.cache/
+
+.claude/stop-hook.log

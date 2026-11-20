@@ -201,3 +201,83 @@ scripts/gtfs/download.ts      fetch("https://www.zillow.com/feed.zip")
 - I did not test the new deny rules: that would mean trying to read a file I am told never to read. I am also not sure they cover shell commands such as `cat`.
 - A `.env.local` now exists; Next loads it at build and run time and I have not opened it. The e2e overrides `APP_PASSWORD` and `DATABASE_URL`, so it cannot reach whatever database that file names.
 - The risks from the step 1 entry still stand: Node 22.14 is untested, 4 dev-only `npm audit` findings via `drizzle-kit`, and the stray `package-lock.json` in the Downloads folder.
+
+## 2026-11-20, step 4, Claude Code
+
+Cost model, hard filters, scoring, feedback, explanations and the Bay Area region pack. Branch `step-4-domain`, commit `b4cc303`. Files only under `src/lib/domain/`, `src/lib/regions/` and `tests/domain/`.
+
+### Changed
+- **`src/lib/domain/`** (pure, no I/O):
+  - `types.ts`: `ListingFacts`, where every field is `Fact<T> | null` (value plus provenance; null is Unknown), and `unknownListing()`. `Settings` is the existing type from `src/db/settings-schema.ts`, so it matches `config/settings.example.json` by construction.
+  - `rational.ts`: exact BigInt fractions. Money stays exact through every sum and division and is rounded once, half up, to whole cents.
+  - `stay.ts`, `lease.ts`: months of stay = days / 30.4375 (exactly days * 16 / 487); one lease analysis shared by the lease filter, the break-fee line and the lease fit score.
+  - `cost.ts`: `computeCost(facts, settings, regionPack)` returns lines (Confirmed, Estimated or Unknown, each with source, URL, as-of date and a question), `allInMonthlyCents`, `allInPlusTransitCents`, `upfrontCashCents`, `passesOnEstimatesOnly`, plus `confirmedFloorCents` and `estimatedFloorCents`.
+  - `filters.ts`: one function per dealbreaker (`checkBudget`, `checkMoveIn`, `checkLease`, `checkCommute`, `checkTransitAccess`, `checkPrivateBedBath`, `checkFurnished`, `checkScamChecks`, `checkRoommates`), and `runHardFilters`, which gives a pass, fail or needs_info bucket with deduplicated questions.
+  - `score.ts`: the 8 curves from the design table, `normalizeWeights`, `scoreListing` (0 to 100). `feedback.ts`: `applyFeedback`, plus a Zod `feedbackChangeSchema` for step 6's tool arguments. `explain.ts`: top two strengths and the biggest weakness.
+- **`src/lib/regions/`**: `bay-area.ts` (every number has a source URL and an as-of date), `index.ts` (`getRegionPack`; any other region gets a pack that answers Unknown), `types.ts`.
+
+### Region pack figures (all estimates, checked 2026-11-20)
+| Item | Value | Source | Check |
+| --- | --- | --- | --- |
+| Caltrain monthly, 1 zone / 2 zones | $96 / $150 | caltrain.com/fares | Read on the fare chart |
+| Caltrain zones | Redwood City 2; Menlo Park, Palo Alto, California Ave, San Antonio, Mountain View, Sunnyvale 3 | caltrain.com/fares | Read on the schedule tables |
+| VTA monthly | $90 | vta.gov/fares | Not verified: the page failed to load (expired certificate). Value from the step prompt |
+| SamTrans monthly | $65.60 | samtrans.com/fares | Read |
+| Stanford Marguerite | free | transportation.stanford.edu | From the design doc |
+| Utilities | FY2026 median household bill: Palo Alto $426, Menlo Park $530, Redwood City $541, Mountain View $457; other cities use $541 | City of Palo Alto Utilities bill insert, June 2026 | Read in the PDF |
+| Utilities, one person's share | household bill / household size when known (2 or more), else / 2.55 | Census QuickFacts, Palo Alto, 2019 to 2023 | From search results; census.gov refused the direct fetch (403) |
+| Internet | $45 | cabletv.com, Palo Alto | From search results |
+| Renter's insurance | $15 | NerdWallet, California | From search results |
+
+### Commands run (with output)
+Baseline before any change:
+```
+$ npm run check
+ Test Files  10 passed (10)
+      Tests  65 passed | 1 skipped (66)
+```
+After:
+```
+$ npx vitest run tests/domain
+ Test Files  5 passed (5)
+      Tests  184 passed (184)
+
+$ npm run check
+ Test Files  15 passed (15)
+      Tests  249 passed | 1 skipped (250)
+(exit 0; the pre-commit hook ran it again on commit b4cc303 with the same result)
+```
+The "Done when" cases, by test:
+- $2,500 boundary (`cost.test.ts`, "$2,500 boundary"): $2,500.00 passes and $2,500.01 fails; the same pair through end rounding ($2,499.995 rounds to $2,500.00 and passes, $2,500.005 rounds to $2,500.01 and fails).
+- Unknown to Needs info: "Unknown rent gives an Unknown total and a Needs info result with the rent question".
+- Transit-fits bonus (`score.test.ts`, "budget headroom and the transit-fits bonus"): $2,404 plus a $96 pass scores 1; $2,450 plus $96 scores 0.52; housing at $2,500 scores 0; the bonus moves the total score by the expected 6.0 points.
+- Also covered: utilities included vs stated vs estimated, a one-time fee spread over the stay, a 12-month lease with a break fee (spread, and pushing a listing over the cap), the feedback cap, clamps and renormalization, and explanation choices.
+
+Mutation checks (each reverted right after; the numbers above are from the reverted tree):
+```
+cap check changed from <= to <        Tests  2 failed | 182 passed (184)
+round half up replaced by floor       Tests  13 failed | 171 passed (184)
+headroom ignores the transit pass     Tests  3 failed | 181 passed (184)
+```
+
+### Assumptions
+- **Strict Unknowns.** Rent, short-term premium, mandatory monthly fees, one-time fees, the non-refundable deposit, setup items and (for a lease that may run long) the break fee have no region estimate. If any is null, the total is Unknown and the listing goes to Needs info with the landlord question. Most listings will land in Needs info until intake (step 5) records "no fees" as a listing fact with value 0, or the landlord answers. This follows "never default a missing value to 0", but you will notice it.
+- **The cap check uses floors.** Fail when confirmed lines alone exceed the cap, since Unknown and estimated lines are at least 0. If only estimates push it over, the result is Unknown (Needs info), not Fail, so a guess never hides a good place. A pass that includes any estimated line sets `passesOnEstimatesOnly` and names the lines: "Passes on estimates, confirm utilities with landlord."
+- **Confirmed vs Estimated** comes from provenance: `estimate` is Estimated; `listing`, `landlord`, `me` and `api` are Confirmed.
+- **Stay:** move-in is the later of the listing's available date and my earliest move-in. If the available date is Unknown, the latest move-in is used (fewer months gives a higher monthly share of one-time costs, so the check errs safe).
+- **Lease:** a fixed lease fits if its length is the stay rounded down to rounded up (7 to 8 months by default, recomputed when dates change); a sublet must run to move-out; month-to-month fits; a longer lease needs a written break or sublet clause. A sublet clause scores lease fit 0.5 and adds no cost (the risk of paying rent until a subtenant is found is not modeled). A free break clause scores 0.5 and a paid one 0.
+- **Upfront cash** = refundable deposit + the first full month's rent, premium and mandatory fees + one-time fees + non-refundable deposit. No proration; setup purchases and the break fee are left out.
+- **Inferences:** a studio or whole apartment counts as a private bedroom and bath with no roommates, unless a fact says otherwise; a room is treated as having roommates.
+- **Transit access** passes if any stop within a 10 min walk runs every 30 min or better (defaults in `TRANSIT_ACCESS_DEFAULTS`, since the settings schema has no fields for them).
+- **Score:** an Unknown factor earns no points and keeps a null score; `knownWeight` shows how much of the weight rests on known facts. Curve endpoints are fixed to the design table (commute 15 to 30 min, not tied to `maxCommuteMinutes`). Choices the table leaves open: transit quality is the best stop's average of walk (5 to 10 min) and frequency (15 to 30 min; regional rail counts as frequent). Cafes: each cafe counts 1 within 10 min, sliding to 0 at 15, and 3 give full marks. Reviews and trust = rating (3.5 to 4.5 stars) times recent volume (5 reviews in 2 years for full) times the share of scam checks passed; any failed check gives 0.
+- **Feedback:** input weights are normalized first; changes to one factor add up, then cap at plus or minus 0.1; each weight clamps to 0..1; then all renormalize. The log shows two decimals ("Raised transit quality from 0.13 to 0.17") and one line when the other weights were rescaled.
+- **Explanations:** strength = points earned (weight times score), weakness = points lost; Unknown factors are listed apart; ties go to the earlier factor.
+- **Transit pass:** per agency, the cheapest product covering that agency's legs; Caltrain uses the zone span. No cross-agency discounts are modeled.
+
+### Open risks or questions for Karthik
+- **The Caltrain 2-zone pass may rise to $156 on 2027-01-01**, inside the stay. Caltrain's proposed-fares page (caltrain.com/node/11802) lists a +$0.25 zone upgrade on 1/1/27, and passes cost 24 one-way fares. I could not confirm it was adopted, so the pack uses $150. It only affects Redwood City commutes; 1 zone stays $96.
+- **VTA $90 is unverified** (vta.gov had an expired certificate when checked).
+- **The utilities estimate for one person is rough.** It is a median household bill divided by 2.55, which probably undercounts a studio (fixed sewer and refuse charges) and may overcount a small room share. The bills exclude taxes and fees, and Palo Alto proposed an 8% increase from 2026-07-01. These lines are labeled Estimated and trigger the "confirm with landlord" flag.
+- Sunnyvale and East Palo Alto have no bill figure in the source; they use the highest bill in the table ($541).
+- Settings has no fields for the transit-access thresholds (10 min, 30 min), so they are domain constants for now. Making them editable needs a step 1 schema change.
+- `computeCost` expects integer cents. A non-integer amount throws a RangeError instead of producing a wrong number, so step 5 should validate facts with Zod before calling it.

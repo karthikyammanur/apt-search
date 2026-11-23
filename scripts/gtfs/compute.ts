@@ -1,6 +1,7 @@
 import path from "node:path";
 import { z } from "zod";
 import { rows } from "./csv";
+import { interpolate } from "./interpolate";
 
 const id = z.string().min(1);
 const date = z
@@ -121,7 +122,13 @@ export async function compute(
   directory: string,
   feed: string,
   today = new Date(),
-): Promise<{ date: string; stops: StopResult[]; missingTimes: number }> {
+): Promise<{
+  date: string;
+  stops: StopResult[];
+  missingTimes: number;
+  interpolatedTimes: number;
+  before: StopResult[];
+}> {
   const file = (name: string) => path.join(directory, `${name}.txt`);
   const calendars: Calendar[] = [],
     exceptions: Exception[] = [];
@@ -183,20 +190,27 @@ export async function compute(
     trip_id: id,
     stop_id: id,
     stop_sequence: z.coerce.number().int().nonnegative(),
-    departure_time: z.union([timeSchema, z.literal("")]),
+    departure_time: z.union([timeSchema, z.literal("")]).default(""),
+    arrival_time: z.union([timeSchema, z.literal("")]).default(""),
+    shape_dist_traveled: z.union([z.literal(""), z.coerce.number().nonnegative()]).default(""),
     pickup_type: z.enum(["", "0", "1", "2", "3"]).default(""),
   });
-  const bases = new Map<string, { sequence: number; time: number }>();
-  if (frequencies.size)
-    for await (const t of rows(file("stop_times"), timeRow)) {
-      if (!frequencies.has(t.trip_id) || !t.departure_time) continue;
-      const previous = bases.get(t.trip_id);
-      if (!previous || t.stop_sequence < previous.sequence)
-        bases.set(t.trip_id, { sequence: t.stop_sequence, time: seconds(t.departure_time) });
-    }
+  const tripTimes = new Map<string, z.infer<typeof timeRow>[]>();
+  for await (const t of rows(file("stop_times"), timeRow)) {
+    if (!trips.has(t.trip_id)) continue;
+    const entries = tripTimes.get(t.trip_id) ?? [];
+    entries.push(t);
+    tripTimes.set(t.trip_id, entries);
+  }
   const stops = new Map<
     string,
-    { result: StopResult; parent: string; times: number[]; modes: Set<string> }
+    {
+      result: StopResult;
+      parent: string;
+      times: number[];
+      beforeTimes: number[];
+      modes: Set<string>;
+    }
   >();
   for await (const s of rows(
     file("stops"),
@@ -229,26 +243,30 @@ export async function compute(
       },
       parent: s.parent_station,
       times: [],
+      beforeTimes: [],
       modes: new Set(),
     });
   }
-  let missingTimes = 0;
-  for await (const t of rows(file("stop_times"), timeRow)) {
-    const mode = trips.get(t.trip_id);
-    if (!mode || t.pickup_type === "1") continue;
-    const stop = stops.get(t.stop_id);
-    if (!stop) throw new Error("Trip references missing stop");
-    stop.modes.add(mode);
-    if (!t.departure_time) {
-      missingTimes++;
-      continue;
-    }
-    const departure = seconds(t.departure_time);
-    const windows = frequencies.get(t.trip_id);
-    if (windows) {
-      const base = bases.get(t.trip_id);
-      if (!base) throw new Error("Frequency trip missing start time");
-      const offset = departure - base.time;
+  let missingTimes = 0,
+    interpolatedTimes = 0;
+  for (const [tripId, entries] of tripTimes) {
+    entries.sort((a, b) => a.stop_sequence - b.stop_sequence);
+    const departures = interpolate(
+      entries.map((t) => ({
+        sequence: t.stop_sequence,
+        arrival: t.arrival_time ? seconds(t.arrival_time) : null,
+        departure: t.departure_time ? seconds(t.departure_time) : null,
+        distance: t.shape_dist_traveled === "" ? null : t.shape_dist_traveled,
+      })),
+    );
+    const base = departures[0];
+    const oldBase = entries.find((t) => t.departure_time);
+    const expand = (departure: number, startTime: number | null | undefined): number[] => {
+      const windows = frequencies.get(tripId);
+      if (!windows) return departure >= 7 * 3600 && departure < 9 * 3600 ? [departure] : [];
+      if (startTime == null) throw new Error("Frequency trip missing start time");
+      const times: number[] = [];
+      const offset = departure - startTime;
       for (const window of windows) {
         const first = Math.max(0, Math.ceil((7 * 3600 - offset - window.start) / window.gap));
         for (
@@ -256,10 +274,28 @@ export async function compute(
           start < window.end && start + offset < 9 * 3600;
           start += window.gap
         ) {
-          stop.times.push(start + offset);
+          times.push(start + offset);
         }
       }
-    } else if (departure >= 7 * 3600 && departure < 9 * 3600) stop.times.push(departure);
+      return times;
+    };
+    for (const [index, t] of entries.entries()) {
+      if (t.pickup_type === "1") continue;
+      const stop = stops.get(t.stop_id);
+      if (!stop) throw new Error("Trip references missing stop");
+      stop.modes.add(trips.get(tripId)!);
+      if (t.departure_time)
+        stop.beforeTimes.push(
+          ...expand(seconds(t.departure_time), oldBase ? seconds(oldBase.departure_time) : null),
+        );
+      const departure = departures[index];
+      if (departure == null) {
+        missingTimes++;
+        continue;
+      }
+      if (!t.departure_time && !t.arrival_time) interpolatedTimes++;
+      stop.times.push(...expand(departure, base));
+    }
   }
   // Station records aggregate their platforms; platform records retain their own service.
   for (const stop of stops.values())
@@ -267,12 +303,20 @@ export async function compute(
       const parent = stops.get(stop.parent);
       if (parent) {
         parent.times.push(...stop.times);
+        parent.beforeTimes.push(...stop.beforeTimes);
         for (const mode of stop.modes) parent.modes.add(mode);
       }
     }
   return {
     date: `${day.slice(0, 4)}-${day.slice(4, 6)}-${day.slice(6, 8)}`,
     missingTimes,
+    interpolatedTimes,
+    before: [...stops.values()].map((s) => ({
+      ...s.result,
+      modes: [...s.modes].sort(),
+      weekdayRushDepartures: s.beforeTimes.length,
+      medianRushHeadwayMin: median(s.beforeTimes),
+    })),
     stops: [...stops.values()].map((s) => ({
       ...s.result,
       modes: [...s.modes].sort(),

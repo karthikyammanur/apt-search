@@ -95,6 +95,16 @@ export function createGmail(
     );
   }
   return {
+    listLatestMessages() {
+      return read(
+        query("https://gmail.googleapis.com/gmail/v1/users/me/messages", {
+          q: "label:housing-alerts",
+          maxResults: 1,
+        }),
+        gmailListSchema,
+        TTL.gmail,
+      );
+    },
     listMessages(since: string, pageToken?: string) {
       if (
         !z.iso.datetime({ offset: true }).safeParse(since).success ||

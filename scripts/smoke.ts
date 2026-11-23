@@ -1,6 +1,7 @@
 import { loadEnvConfig } from "@next/env";
 import { mkdir, writeFile } from "node:fs/promises";
 import { z } from "zod";
+import { rentcastAccessReason } from "../src/lib/providers/rentcast";
 import settings from "../config/settings.example.json";
 import {
   createCachedFetch,
@@ -22,7 +23,27 @@ const live = createCachedFetch();
 let fixtureName = "";
 // Record validated contracts only. Never record OAuth tokens or mailbox content.
 const transport: Transport = async (provider, request) => {
-  const result = await live(provider, request, 0);
+  const result = await live(
+    provider,
+    {
+      ...request,
+      classify: (body, status) => {
+        if (provider === "rentcast") {
+          const reason = rentcastAccessReason(body, status);
+          if (reason) console.log(`rentcast: disabled (${reason})`);
+        }
+        return request.classify?.(body, status);
+      },
+      diagnose:
+        provider === "rentcast" || provider === "overpass"
+          ? (details) =>
+              console.log(
+                `${provider} diagnostic: ${JSON.stringify({ endpoint: new URL(request.url).hostname, ...details })}`,
+              )
+          : undefined,
+    },
+    0,
+  );
   if (record && result.ok && provider !== "gmail") {
     let data: unknown = result.data;
     if (provider === "supost") {
@@ -126,12 +147,22 @@ async function main() {
   await run("overpass", () => overpass.nearby(to));
   await run("supost", () => supost.listings());
   await run("rentcast", () => rentcast.listings(to));
-  const messages = await run("gmail-list", () =>
-    gmail.listMessages(new Date(Date.now() - 24 * 60 * 60_000).toISOString()),
-  );
+  const messages = await run("gmail-list", () => gmail.listLatestMessages());
   const id = messages.ok ? messages.data.messages?.[0]?.id : undefined;
-  if (id) await run("gmail-message", () => gmail.getMessage(id));
-  else console.log("gmail-message: skipped (no message ID available)");
+  if (id) {
+    const message = await run("gmail-message", () => gmail.getMessage(id));
+    if (message.ok) {
+      const header = (name: string) =>
+        message.data.headers.find((h) => h.name.toLowerCase() === name)?.value ?? "";
+      const domain =
+        header("from")
+          .match(/@([a-z0-9](?:[a-z0-9.-]*[a-z0-9])?)(?=>|\s|$)/i)?.[1]
+          ?.toLowerCase() ?? "Unknown";
+      console.log(
+        `gmail-message: sender domain ${domain}; subject length ${header("subject").length}`,
+      );
+    }
+  } else console.log("gmail-message: skipped (no message ID available)");
 }
 main().catch(() => {
   console.error("smoke: failed to initialize");

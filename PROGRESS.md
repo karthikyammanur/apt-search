@@ -432,3 +432,77 @@ headroom ignores the transit pass     Tests  3 failed | 181 passed (184)
 - Sunnyvale and East Palo Alto have no bill figure in the source; they use the highest bill in the table ($541).
 - Settings has no fields for the transit-access thresholds (10 min, 30 min), so they are domain constants for now. Making them editable needs a step 1 schema change.
 - `computeCost` expects integer cents. A non-integer amount throws a RangeError instead of producing a wrong number, so step 5 should validate facts with Zod before calling it.
+
+## 2026-11-23, provider and transit fixes, Codex
+
+Branch `fixes-providers-transit`. Implementation and fixture tests are complete. Live GTFS validation remains blocked by the missing shell token and the environment-file restriction; this fixes round is not fully accepted yet.
+
+Changed:
+- Overpass already used POST, a URL-encoded `data` body and an identifying User-Agent. A focused probe with the original 20-second deadline produced `TimeoutError` at 20,052 ms on the main endpoint and at 40,059 ms cumulative on the fallback. Increased only Overpass's deadline to 45 seconds and added `overpass.private.coffee` as the second public endpoint. One request per endpoint reserves the two-request provider budget for fallback. Google Places remains unchanged as the primary places source.
+- Added optional request diagnostics that report HTTP status, top-level field types, elapsed milliseconds and sanitized network error codes. They never report payload values or request credentials. Existing exported function signatures in providers and transit are preserved; request options and Gmail functionality are additive.
+- RentCast returned HTTP 401 with `{status: number, error: string, message: string}`. This is an authentication rejection, not a listing-schema mismatch. Access errors 401/402/403 now map to `disabled`; smoke prints a normalized activation/authentication/billing reason without printing the API message. The live message did not establish that a payment method was specifically required, so the report does not claim that.
+- GTFS groups active-trip stop times, sorts by stop sequence, and interpolates bounded untimed runs using monotonic shape distances when the whole segment has them, otherwise stop sequence. Arrival-only times are supported. Interpolation uses the preceding departure and following arrival to preserve timepoint dwell. Unbounded and backward-time gaps stay unknown. No-pickup anchors still constrain interpolation but never count as boardings. Frequency offsets include interpolated stops. The runner compares the old departure-only algorithm with the new algorithm on the same feed/service date, printing before and after counts for the named stations and the three bus stops with the largest increases.
+- Gmail smoke now queries the housing-alerts label without a date cutoff, requests the newest message, and prints only sender domain and subject length. The existing skipped line remains for an empty label. No mailbox content is recorded or included here.
+- Added fixture-only regression coverage for endpoint fallback, access errors, diagnostic redaction, empty Gmail label queries, interpolation distance/sequence rules, unsorted interleaved trips, arrival-only stops, restricted pickup, frequency offsets and overnight/unbounded times. No dependencies added.
+
+Commands and evidence:
+```
+$ git branch --show-current
+fixes-providers-transit
+
+$ npm run check
+PowerShell rejected npm.ps1 under its script-signing policy.
+
+$ npm.cmd run check  (baseline)
+ Test Files  18 passed (18)
+      Tests  300 passed | 1 skipped (301)
+(exit 0)
+
+$ npm.cmd run smoke  (network-enabled baseline)
+overpass: network
+rentcast: bad_response
+gmail-list: ok
+gmail-message: ok
+(exit 0)
+
+$ npm.cmd run smoke  (first fixed live run)
+overpass diagnostic: HTTP 200, field types only
+overpass: ok
+rentcast diagnostic: HTTP 401, field types only
+rentcast: disabled
+(exit 0)
+
+$ npm.cmd run smoke  (latest live run)
+overpass diagnostic: endpoint overpass-api.de, networkCode TimeoutError
+overpass diagnostic: endpoint overpass.private.coffee, networkCode TimeoutError
+overpass: network
+rentcast diagnostic: HTTP 401; shape {status: number, error: string, message: string}
+rentcast: disabled (API authentication rejected; check key validity and activation in the RentCast dashboard)
+rentcast: disabled
+gmail-list: ok
+gmail-message: ok
+Gmail sender domain and subject length printed successfully; metadata omitted from this log.
+All other provider checks: ok. Google Demo Key TRANSIT route: YES.
+(exit 0)
+
+$ npm.cmd run gtfs
+Set API_511_TOKEN in the shell environment
+(exit 1)
+
+$ npm.cmd run check  (final implementation)
+ Test Files  19 passed (19)
+      Tests  311 passed | 1 skipped (312)
+(exit 0; no type or lint errors)
+
+$ git diff --check
+No whitespace errors; only Git LF/CRLF conversion notices.
+(exit 0)
+```
+
+Open risks and remaining evidence:
+- Both public Overpass endpoints timed out in the latest run from this environment, despite an earlier HTTP 200 at the increased deadline. This establishes a timeout and intermittent availability, not the remote server's exact internal cause. The fallback was tried. Public instance documentation also notes that the main server is overloaded.
+- The shell has no API_511_TOKEN and this checkout has no fresh feed cache. A proposed standard Next environment loader was rejected by automatic approval review because it could read .env files prohibited by AGENTS.md. The loader was removed, and no alternative route to those files was attempted. An approval question is pending: permit the standard loader for GTFS, or export the token in the shell. Live before/after counts for California Ave Caltrain, Palo Alto Transit Center and the three changed bus stops remain unavailable until this is resolved. The computation and report are fixture-tested, but the live 6,105-row recovery has not been verified here.
+- Active stop times are retained in memory to support interleaved trips and sequence sorting; the regional feed's runtime and memory use still need live verification.
+- No TASKS.md status changed: existing steps 2 and 3 were already Passing, and this fixes round has no separate status row. Only owned files and this explicitly requested progress append were edited.
+
+References checked: [GTFS stop_times](https://gtfs.org/documentation/schedule/reference/#stop_timestxt), [RentCast response codes](https://developers.rentcast.io/reference/response-codes), [RentCast listing contract](https://developers.rentcast.io/reference/property-listings), [public Overpass instances](https://wiki.openstreetmap.org/wiki/Overpass_API#Public_Overpass_API_instances).

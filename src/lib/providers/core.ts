@@ -15,6 +15,14 @@ export type Request<T> = {
   schema: z.ZodType<T>;
   classify?: (body: unknown, status: number) => ProviderError | undefined;
   memoryOnly?: boolean;
+  timeoutMs?: number;
+  attempts?: 1 | 2;
+  diagnose?: (details: {
+    status?: number;
+    shape?: unknown;
+    networkCode?: string;
+    elapsedMs?: number;
+  }) => void;
 };
 export type Transport = <T>(
   provider: Provider,
@@ -104,20 +112,30 @@ export function createCachedFetch(
         windows.set(provider, window);
       }
       if (window.until > time || window.count >= limits[provider]) return failure("rate_limited");
-      for (let attempt = 0; attempt < 2; attempt++) {
+      const attempts = request.attempts ?? 2;
+      for (let attempt = 0; attempt < attempts; attempt++) {
         if (window.count >= limits[provider]) return failure("rate_limited");
         window.count++;
+        const started = now();
         let response: Response;
         try {
           response = await (options.fetch ?? globalThis.fetch)(request.url, {
             ...request.init,
             redirect: "error",
-            signal: AbortSignal.timeout(20_000),
+            signal: AbortSignal.timeout(request.timeoutMs ?? 20_000),
           });
-        } catch {
+        } catch (error) {
+          const cause = z
+            .object({ cause: z.object({ code: z.string() }).optional(), name: z.string() })
+            .safeParse(error);
+          const code = cause.success ? (cause.data.cause?.code ?? cause.data.name) : "unknown";
+          request.diagnose?.({
+            networkCode: /^[A-Z_a-z0-9]+$/.test(code) ? code : "unknown",
+            elapsedMs: now() - started,
+          });
           return failure("network");
         }
-        if (response.status >= 500 && attempt === 0) {
+        if (response.status >= 500 && attempt + 1 < attempts) {
           await response.body?.cancel();
           continue;
         }
@@ -134,8 +152,25 @@ export function createCachedFetch(
         try {
           body = await response.json();
         } catch {
+          request.diagnose?.({
+            status: response.status,
+            shape: "non-JSON",
+            elapsedMs: now() - started,
+          });
           return failure(response.status === 429 ? "rate_limited" : "bad_response");
         }
+        // Report types only, never response values, addresses, credentials or mailbox content.
+        const shape = Array.isArray(body)
+          ? { type: "array", length: body.length }
+          : body && typeof body === "object"
+            ? Object.fromEntries(
+                Object.entries(body).map(([key, value]) => [
+                  key,
+                  value === null ? "null" : typeof value,
+                ]),
+              )
+            : typeof body;
+        request.diagnose?.({ status: response.status, shape, elapsedMs: now() - started });
         const classified = request.classify?.(body, response.status);
         if (classified === "quota_paused") {
           const expiresAt = new Date(time + 24 * 60 * 60_000).toISOString();

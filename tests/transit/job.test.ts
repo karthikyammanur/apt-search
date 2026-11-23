@@ -106,3 +106,27 @@ it("expands frequency templates using each stop's offset", async () => {
     [6, 20],
   ]);
 });
+
+it("counts interleaved unsorted untimed stops, including frequency offsets and pickup anchors", async () => {
+  const dir = await directory();
+  await cp("tests/fixtures/gtfs", dir, { recursive: true });
+  await writeFile(path.join(dir, "trips.txt"), "route_id,service_id,trip_id\nR,W,T1\nR,W,T2\n");
+  await writeFile(
+    path.join(dir, "stop_times.txt"),
+    "trip_id,stop_id,stop_sequence,arrival_time,departure_time,shape_dist_traveled,pickup_type\n" +
+      "T1,A,3,07:10:00,07:15:00,4,1\nT2,A,1,08:00:00,,0,0\n" +
+      "T1,B,2,,,1,0\nT1,A,1,06:50:00,06:50:00,0,1\n",
+  );
+  await writeFile(
+    path.join(dir, "frequencies.txt"),
+    "trip_id,start_time,end_time,headway_secs\nT1,06:50:00,09:00:00,1200\n",
+  );
+  const result = await compute(dir, "fixture");
+  expect(result.missingTimes).toBe(0);
+  expect(result.interpolatedTimes).toBe(1);
+  expect(result.before.map((s) => s.weekdayRushDepartures)).toEqual([0, 0]);
+  expect(result.stops.map((s) => [s.weekdayRushDepartures, s.medianRushHeadwayMin])).toEqual([
+    [1, null],
+    [6, 20],
+  ]);
+});

@@ -16,7 +16,7 @@ import { createTransitland } from "@/lib/providers/transitland";
 import { createGeoapify } from "@/lib/providers/geoapify";
 import { createFallbacks } from "@/lib/providers/fallbacks";
 import { createSupost } from "@/lib/providers/supost";
-import { createRentcast } from "@/lib/providers/rentcast";
+import { createRentcast, rentcastAccessReason } from "@/lib/providers/rentcast";
 import { createOverpass } from "@/lib/providers/overpass";
 import { createGmail } from "@/lib/providers/gmail";
 
@@ -94,15 +94,13 @@ describe("cached provider core", () => {
   });
   it("revalidates responses already in the cache", async () => {
     const h = await harness();
-    await h.db
-      .insert(apiCache)
-      .values({
-        provider: "google",
-        requestHash: requestHash(request),
-        response: '{"routes":12}',
-        fetchedAt: "2026-11-20T11:00:00Z",
-        expiresAt: "2026-11-21T12:00:00Z",
-      });
+    await h.db.insert(apiCache).values({
+      provider: "google",
+      requestHash: requestHash(request),
+      response: '{"routes":12}',
+      fetchedAt: "2026-11-20T11:00:00Z",
+      expiresAt: "2026-11-21T12:00:00Z",
+    });
     expect(await h.transport("google", request, 1000)).toMatchObject({ ok: true });
     expect(h.network).toHaveBeenCalledTimes(1);
   });
@@ -318,14 +316,20 @@ describe("clients and fallback contracts", () => {
     ).toEqual({ ok: false, error: "bad_response" });
     expect(h.network).not.toHaveBeenCalled();
   });
-  it("builds one Overpass area query with a descriptive User-Agent", async () => {
+  it("tries both Overpass endpoints with the same POST form and descriptive User-Agent", async () => {
     const calls: { provider: Provider; request: Request<unknown> }[] = [];
     const spy: Transport = async (provider, request) => {
       calls.push({ provider, request });
       return { ok: false, error: "network" };
     };
     await createOverpass({ transport: spy }).nearby(to);
-    expect(calls).toHaveLength(1);
+    expect(calls).toHaveLength(2);
+    expect(calls.map((call) => new URL(call.request.url).hostname)).toEqual([
+      "overpass-api.de",
+      "overpass.private.coffee",
+    ]);
+    expect(calls[0]?.request.init?.method).toBe("POST");
+    expect(calls[1]?.request.init?.body).toBe(calls[0]?.request.init?.body);
     expect(new Headers(calls[0]?.request.init?.headers).get("User-Agent")).toContain(
       "ApartmentFinder",
     );
@@ -333,6 +337,68 @@ describe("clients and fallback contracts", () => {
     expect(body).toContain("fitness_centre");
     expect(body).toContain("amenity=cafe");
     expect(body).toContain("supermarket");
+  });
+  it("reserves the second Overpass request for fallback after an HTTP outage", async () => {
+    const h = await harness([{ body: {}, status: 503 }, { body: { version: 0.6, elements: [] } }]);
+    expect(await createOverpass({ transport: h.transport }).nearby(to)).toEqual({
+      ok: true,
+      data: { version: 0.6, elements: [] },
+    });
+    expect(h.network).toHaveBeenCalledTimes(2);
+    expect(String(h.network.mock.calls[1]?.[0])).toContain("overpass.private.coffee");
+  });
+  it("does not call the backup after a successful Overpass request", async () => {
+    const h = await harness([{ body: { version: 0.6, elements: [] } }]);
+    expect(await createOverpass({ transport: h.transport }).nearby(to)).toMatchObject({ ok: true });
+    expect(h.network).toHaveBeenCalledTimes(1);
+  });
+  it.each([401, 402, 403])("maps RentCast HTTP %s access errors to disabled", async (status) => {
+    const h = await harness([
+      { body: { status, error: "auth/error", message: "Add a payment method" }, status },
+    ]);
+    expect(await createRentcast({ key: "test", transport: h.transport }).listings(to)).toEqual({
+      ok: false,
+      error: "disabled",
+    });
+    expect(rentcastAccessReason({ message: "Add a payment method" }, status)).toContain(
+      "payment method",
+    );
+    expect(rentcastAccessReason({ message: "Subscription not activated" }, status)).toContain(
+      "not active",
+    );
+  });
+  it("keeps malformed successful RentCast responses as bad_response and redacts diagnostics", async () => {
+    const body = { message: "Private address or credential", status: 200 };
+    const h = await harness([{ body }]);
+    const diagnose = vi.fn();
+    const transport: Transport = (provider, request, ttl) =>
+      h.transport(provider, { ...request, diagnose }, ttl);
+    expect(await createRentcast({ key: "test", transport }).listings(to)).toEqual({
+      ok: false,
+      error: "bad_response",
+    });
+    expect(diagnose).toHaveBeenCalledWith({
+      elapsedMs: 0,
+      status: 200,
+      shape: { message: "string", status: "number" },
+    });
+    expect(JSON.stringify(diagnose.mock.calls)).not.toContain(body.message);
+  });
+  it("queries the latest Gmail label message without a date cutoff and handles an empty label", async () => {
+    const h = await harness([
+      { body: { access_token: "test", expires_in: 3600, token_type: "Bearer" } },
+      { body: { resultSizeEstimate: 0 } },
+    ]);
+    const gmail = createGmail({
+      clientId: "test",
+      clientSecret: "test",
+      refreshToken: "test",
+      transport: h.transport,
+    });
+    expect(await gmail.listLatestMessages()).toEqual({ ok: true, data: { resultSizeEstimate: 0 } });
+    const url = new URL(String(h.network.mock.calls[1]?.[0]));
+    expect(url.searchParams.get("q")).toBe("label:housing-alerts");
+    expect(url.searchParams.get("maxResults")).toBe("1");
   });
 });
 
@@ -407,15 +473,13 @@ describe("walk, bike and geocode fallback selection", () => {
 describe("cache fault and privacy handling", () => {
   it("refreshes a corrupt cached JSON body", async () => {
     const h = await harness();
-    await h.db
-      .insert(apiCache)
-      .values({
-        provider: "google",
-        requestHash: requestHash(request),
-        response: "invalid json",
-        fetchedAt: "2026-11-20T11:00:00Z",
-        expiresAt: "2026-11-21T12:00:00Z",
-      });
+    await h.db.insert(apiCache).values({
+      provider: "google",
+      requestHash: requestHash(request),
+      response: "invalid json",
+      fetchedAt: "2026-11-20T11:00:00Z",
+      expiresAt: "2026-11-21T12:00:00Z",
+    });
     expect(await h.transport("google", request, 1000)).toMatchObject({ ok: true });
   });
   it("keeps memory-only responses out of api_cache", async () => {
@@ -429,15 +493,13 @@ describe("cache fault and privacy handling", () => {
   it("uses a cached route even while the provider is paused", async () => {
     const h = await harness();
     const first = await h.transport("google", request, 1000);
-    await h.db
-      .insert(apiCache)
-      .values({
-        provider: "google",
-        requestHash: "quota_pause",
-        response: "null",
-        fetchedAt: "2026-11-20T11:00:00Z",
-        expiresAt: "2026-11-21T12:00:00Z",
-      });
+    await h.db.insert(apiCache).values({
+      provider: "google",
+      requestHash: "quota_pause",
+      response: "null",
+      fetchedAt: "2026-11-20T11:00:00Z",
+      expiresAt: "2026-11-21T12:00:00Z",
+    });
     expect(await h.transport("google", request, 1000)).toEqual(first);
     expect(h.network).toHaveBeenCalledTimes(1);
   });

@@ -1,0 +1,22 @@
+{
+  "groupName": "Bay Area Furnished Rentals & Sublets",
+  "posts": [
+    {
+      "postUrl": "https://www.facebook.com/groups/123456789/posts/111111111/",
+      "groupName": "Bay Area Furnished Rentals & Sublets",
+      "posterName": "Dana Whitfield",
+      "posterProfileUrl": "https://www.facebook.com/example.profile.1",
+      "text": "Furnished room for rent at 400 Maple Ave, Mountain View, CA 94040. $2,100 a month, own bathroom, bed desk and chair, kitchen shared with one other person. Utilities included. Available Jan 5, lease through August.",
+      "photoUrls": ["https://scontent.example.test/fb/room-a.jpg"],
+      "photoHash": "ph-5f3a9c01"
+    },
+    {
+      "postUrl": "https://www.facebook.com/groups/123456789/posts/222222222/",
+      "groupName": "Bay Area Furnished Rentals & Sublets",
+      "posterName": "Jordan Lee",
+      "posterProfileUrl": "https://www.facebook.com/example.profile.2",
+      "text": "Looking for a roommate (another intern) to rent a 2 bed 2 bath in Sunnyvale from Jan to Aug. Budget $2,400 each. Message me!",
+      "photoUrls": []
+    }
+  ]
+}

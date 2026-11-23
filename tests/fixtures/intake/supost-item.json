@@ -1,0 +1,15 @@
+{
+  "listings": [
+    {
+      "id": 90001,
+      "title": "Furnished room near campus, private bath, $1,700",
+      "price": 1700,
+      "category": "housing",
+      "created_at": "2026-11-21T10:00:00Z",
+      "url": "https://supost.com/post/90001",
+      "poster_email_domain": "example.edu",
+      "stanford_verified": true
+    }
+  ],
+  "next_cursor": null
+}

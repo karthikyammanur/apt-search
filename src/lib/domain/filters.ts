@@ -2,7 +2,7 @@
 // Each returns Pass, Fail or Unknown with a reason. Unknown also carries the exact questions
 // to ask. Any Fail drops the listing; otherwise any Unknown puts it in Needs info.
 
-import type { CostResult } from "./cost";
+import type { CostLineKey, CostResult } from "./cost";
 import { fmtCents, fmtDate } from "./format";
 import { analyzeLease } from "./lease";
 import { stayPeriod } from "./stay";
@@ -231,14 +231,39 @@ export function checkRoommates(facts: ListingFacts): FilterResult {
     : fail("roommates", "No chance to talk to the roommates before signing");
 }
 
-export type Bucket = "pass" | "fail" | "needs_info";
+/**
+ * "likely" is a refinement of needs_info, never a confirmed pass: the known monthly costs sit
+ * well under the cap and only fees are missing. It ranks with the scored listings.
+ */
+export type Bucket = "pass" | "fail" | "needs_info" | "likely";
+
+/** Known monthly costs must be at least this far under the cap for a "likely" listing. */
+export const LIKELY_MARGIN_CENTS = 15000;
+export const LIKELY_REASON = "confirm fees with landlord";
+/** The only cost lines that may be Unknown for a "likely" listing. */
+const LIKELY_UNKNOWN_LINES: readonly CostLineKey[] = ["mandatory_fees", "one_time_fees", "setup_items"];
 
 export type HardFilterReport = {
   bucket: Bucket;
   results: FilterResult[];
   /** Questions from every Unknown filter, without duplicates. */
   questions: Question[];
+  /** Set only when the bucket is "likely". */
+  likelyReason?: string;
 };
+
+/**
+ * Known monthly costs (confirmed plus estimated lines) are at least $150 under the cap, and the
+ * only Unknown cost lines are mandatory fees, one-time fees or setup items.
+ */
+export function isLikelyOnCost(cost: CostResult, settings: Settings): boolean {
+  const unknownLines = cost.lines.filter((line) => line.status === "unknown");
+  return (
+    unknownLines.length > 0 &&
+    unknownLines.every((line) => LIKELY_UNKNOWN_LINES.includes(line.key)) &&
+    cost.estimatedFloorCents <= settings.budgetCapCents - LIKELY_MARGIN_CENTS
+  );
+}
 
 export function runHardFilters(
   facts: ListingFacts,
@@ -257,14 +282,28 @@ export function runHardFilters(
     checkScamChecks(facts),
     checkRoommates(facts),
   ];
-  const bucket: Bucket = results.some((r) => r.status === "fail")
+  let bucket: Bucket = results.some((r) => r.status === "fail")
     ? "fail"
     : results.some((r) => r.status === "unknown")
       ? "needs_info"
       : "pass";
+  // Likely: the budget is Unknown only because of fees, and every other filter passes. Open scam
+  // checks do not block it, since they stay open until I verify a listing by hand. A failed one
+  // already made the bucket "fail".
+  const budget = results.find((r) => r.filter === "budget");
+  if (
+    bucket === "needs_info" &&
+    budget?.status === "unknown" &&
+    isLikelyOnCost(cost, settings) &&
+    results.every((r) => r.filter === "budget" || r.filter === "scam_checks" || r.status === "pass")
+  ) {
+    bucket = "likely";
+  }
   const seen = new Set<string>();
   const questions = results
     .flatMap((r) => r.questions)
     .filter((q) => (seen.has(q.field) ? false : (seen.add(q.field), true)));
-  return { bucket, results, questions };
+  return bucket === "likely"
+    ? { bucket, results, questions, likelyReason: LIKELY_REASON }
+    : { bucket, results, questions };
 }

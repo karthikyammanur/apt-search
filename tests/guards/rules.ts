@@ -35,13 +35,14 @@ export function loadSourceFiles(dir = "src", root = repoRoot): SourceFile[] {
 
 /** App code and scripts: everything the fetch rules apply to. */
 export function loadFetchScopeFiles(root = repoRoot): SourceFile[] {
-  return [...loadSourceFiles("src", root), ...loadSourceFiles("scripts", root)];
+  return [...loadSourceFiles("src", root), ...loadSourceFiles("scripts", root), ...loadSourceFiles("extension", root).filter((file) => !file.path.startsWith("extension/dist/"))];
 }
 
 export const PROVIDERS_DIR = "src/lib/providers/";
 /** scripts/gtfs/ is an offline job that downloads GTFS feeds once. It is not app traffic. */
 export const GTFS_SCRIPTS_DIR = "scripts/gtfs/";
-export const FETCH_ALLOWED_DIRS = [PROVIDERS_DIR, GTFS_SCRIPTS_DIR];
+// Extension captures are user-clicked DOM reads; their only network destination is the configured app.
+export const FETCH_ALLOWED_DIRS = [PROVIDERS_DIR, GTFS_SCRIPTS_DIR, "extension/"];
 
 function mayFetch(filePath: string): boolean {
   return FETCH_ALLOWED_DIRS.some((dir) => filePath.startsWith(dir));
@@ -102,7 +103,7 @@ export function findBannedFetches(files: SourceFile[]): string[] {
       }
     }
     // Providers and the GTFS job are the only fetchers, so no banned host may appear in them.
-    if (mayFetch(file.path) && BANNED_HOST.test(file.text)) {
+    if (mayFetch(file.path) && !file.path.startsWith("extension/") && BANNED_HOST.test(file.text)) {
       violations.push(`${file.path}: fetching code references a banned site host`);
     }
   }

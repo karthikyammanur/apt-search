@@ -11,6 +11,8 @@ const E2E_DATABASE_URL = "file:data/e2e.db";
 const RESET_DB = "require('node:fs').rmSync('data/e2e.db',{force:true})";
 
 export default defineConfig({
+  globalSetup: "./tests/views/e2e-setup.ts",
+  workers: 1,
   testDir: "tests/e2e",
   testMatch: "**/*.spec.ts",
   reporter: [["list"]],

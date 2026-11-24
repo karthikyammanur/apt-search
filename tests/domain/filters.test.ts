@@ -159,3 +159,70 @@ describe("buckets", () => {
     expect(report.questions.map((q) => q.field)).toEqual(["rentCents", "availableFrom", "privateBath"]);
   });
 });
+
+describe("the likely bucket", () => {
+  const CAP = settings.budgetCapCents;
+  const run = (over: Partial<ListingFacts>) => {
+    const listing = L(over);
+    return runHardFilters(listing, settings, computeCost(listing, settings, bayAreaPack));
+  };
+  // Rent is the only known cost line; the fee lines are Unknown.
+  const feesUnknown = { mandatoryFeesMonthlyCents: null, oneTimeFeesCents: null };
+
+  it.each([
+    { name: "$150.00 under the cap", rent: CAP - 15000, bucket: "likely" },
+    { name: "$149.99 under the cap", rent: CAP - 14999, bucket: "needs_info" },
+    { name: "$151 under the cap", rent: CAP - 15100, bucket: "likely" },
+    { name: "$1 under the cap", rent: CAP - 100, bucket: "needs_info" },
+    { name: "at the cap", rent: CAP, bucket: "needs_info" },
+    { name: "$0.01 over the cap", rent: CAP + 1, bucket: "fail" },
+  ])("known costs $name give $bucket", ({ rent, bucket }) => {
+    expect(run({ ...feesUnknown, rentCents: f(rent) }).bucket).toBe(bucket);
+  });
+
+  it("carries the reason, keeps the fee questions, and is never a confirmed pass", () => {
+    const report = run({ ...feesUnknown, rentCents: f(200000) });
+    expect(report.bucket).toBe("likely");
+    expect(report.bucket).not.toBe("pass");
+    expect(report.likelyReason).toBe("confirm fees with landlord");
+    expect(report.questions.map((q) => q.field)).toEqual(
+      expect.arrayContaining(["mandatoryFeesMonthlyCents", "oneTimeFeesCents"]),
+    );
+  });
+
+  it("counts setup items as an allowed Unknown line", () => {
+    expect(run({ ...feesUnknown, lacksBasics: null, rentCents: f(200000) }).bucket).toBe("likely");
+  });
+
+  it.each([
+    { name: "the non-refundable deposit", over: { nonRefundableDepositCents: null } },
+    { name: "the short-term premium", over: { shortTermPremiumCents: null } },
+    { name: "the rent", over: { rentCents: null } },
+  ])("an Unknown $name keeps it in needs_info", ({ over }) => {
+    expect(run({ ...feesUnknown, rentCents: f(200000), ...over }).bucket).toBe("needs_info");
+  });
+
+  it("estimated lines count as known costs", () => {
+    // Utilities not stated: the region estimate is added to rent and can close the $150 gap.
+    const report = run({ ...feesUnknown, rentCents: f(CAP - 15000), utilitiesIncluded: null });
+    expect(report.bucket).toBe("needs_info");
+  });
+
+  it("stays needs_info when another filter is Unknown", () => {
+    expect(run({ ...feesUnknown, rentCents: f(200000), privateBath: null }).bucket).toBe("needs_info");
+  });
+
+  it("a failed filter still drops it", () => {
+    expect(run({ ...feesUnknown, rentCents: f(200000), commuteMinutes: f(45, "api") }).bucket).toBe("fail");
+  });
+
+  it("open scam checks do not block it, a failed one does", () => {
+    expect(run({ ...feesUnknown, rentCents: f(200000), scamChecks: null }).bucket).toBe("likely");
+    const failed = { ...allScamChecksPass, untraceable_payment_before_lease: "fail" as const };
+    expect(run({ ...feesUnknown, rentCents: f(200000), scamChecks: f(failed, "estimate") }).bucket).toBe("fail");
+  });
+
+  it("a fully known listing is still a plain pass", () => {
+    expect(run({ rentCents: f(CAP - 15000) }).bucket).toBe("pass");
+  });
+});

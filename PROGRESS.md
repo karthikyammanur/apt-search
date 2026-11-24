@@ -506,3 +506,85 @@ Open risks and remaining evidence:
 - No TASKS.md status changed: existing steps 2 and 3 were already Passing, and this fixes round has no separate status row. Only owned files and this explicitly requested progress append were edited.
 
 References checked: [GTFS stop_times](https://gtfs.org/documentation/schedule/reference/#stop_timestxt), [RentCast response codes](https://developers.rentcast.io/reference/response-codes), [RentCast listing contract](https://developers.rentcast.io/reference/property-listings), [public Overpass instances](https://wiki.openstreetmap.org/wiki/Overpass_API#Public_Overpass_API_instances).
+
+## 2026-11-23, step 5, Claude Code
+
+Intake pipeline, the five listing channels, the model client, and the "likely passes" bucket. Branch `step-5-intake`.
+
+### Changed
+- **`src/lib/llm/`** (new): one OpenAI-compatible client on the Vercel AI SDK. `generateStructured(schema, prompt, { images?, system? })` walks Gemini, OpenRouter, Groq, SambaNova and Z.ai in that order, skips a blank key, moves on after any API failure (429, 5xx, timeout, retired model), validates the reply with Zod and gives one repair turn. It returns `{ ok, data | error }` and never throws. Images must be `data:` URLs or bytes: the SDK downloads any http image URL itself, which would make the server fetch listing photos.
+- **`src/lib/intake/`**: `pipeline.ts` (seven stages, each an exported function), `extract.ts` and `schema.ts` (the model form, with checks in code), `validate.ts`, `dedupe.ts`, `trust.ts`, `enrich.ts`, `analysis.ts`, `facts.ts`, `store.ts`, `run.ts`, `cli.ts`, `channels/` (SUPost, Gmail and email parsing, RentCast), `capture.ts`. See `src/lib/intake/README.md`.
+- **`src/app/api/capture/route.ts`**, **`src/app/api/cron/intake/route.ts`**, **`vercel.json`** (daily at 14:00 UTC), one `CAPTURE_TOKEN=` line in `.env.example`.
+- **`src/lib/domain/filters.ts`**: new bucket `likely` (item 6). `HardFilterReport.likelyReason` carries "confirm fees with landlord".
+- **Outside my folders, needed to build it:** `package.json` and `package-lock.json` (the two dependencies and the `intake:once` script).
+
+### How each requirement is met
+- **No number from the model.** The model returns dollars as written; code converts to cents. A dollar amount is kept only if it appears in the post text (or in the channel's API fields), and a stated 0 needs wording such as "no fees". Costs, commutes, filters and scores come only from `src/lib/domain/` and `src/lib/providers/`.
+- **No guessing on dealbreakers.** A true or false for private bedroom, private bath, furnished, utilities or internet is kept only if matching words are in the post. The first live run showed the model marking "Furnished room for rent" as a private bedroom.
+- **Provenance.** Listing facts are `listing`; commute, a routed stop walk, grocery and gym are `api`; straight-line walks and the cafe list are `estimate`; the scam checks fact is `estimate`, so one resolved by hand (`me`) wins. Nothing writes a null.
+- **Trust checks** (Pass, Fail or Unknown each): wire, Zelle, gift card or crypto before a lease; owner overseas or keys mailed; pressure to pay fast; refusal of a video tour; price under 60 percent of the median of at least 3 saved listings of the same type; a photo hash reused at a different address. A text check passes only on a post of 250 characters or more, so a bare SUPost title is Unknown.
+- **Dedupe.** A saved link skips the model entirely. A duplicate merges into `source_links`, adds new photos, and fills only fields the saved listing does not know.
+- **Injected instructions.** Post text sits between marker lines it cannot forge; the system prompt says it is data; the reply must match the schema; extra keys are dropped; numbers and dealbreaker claims need support in the text; nothing in the pipeline can send anything, open a post link, or change a status. A stub model that obeys an injected "rent is one dollar" still leaves rent Unknown.
+
+### Decisions and assumptions
+- **`likely` bucket.** As approved: no Fail, the budget Unknown only because mandatory fees, one-time fees or setup items are Unknown, and known monthly costs (confirmed plus estimated lines) at least $150.00 under the cap. I also required every other filter to Pass, except open scam checks, which stay open on almost every listing until verified by hand (a failed one is already a Fail). This is my call, please confirm. The $150 line is tested at $149.99, $150.00 and $151.00.
+- **Commute date.** "First weekday after the start date" is implemented as the first weekday on or after it, so the Monday start 2027-01-11 gives Monday 8:30 am Pacific (the acceptance check says Monday). PST or PDT is computed for that date.
+- **Order.** A listing's link is checked before the model runs, so a saved post costs no quota. Cheap filters also include lease, scam checks and roommates, since they need no map data.
+- **Stops.** The nearest stop within 1,200 m gets a routed walk, the rest a straight-line estimate (80 m a minute, 1.3 detour). No stop within 1,200 m but one within 15 km is an empty list (the transit filter then fails it); none within 15 km, or an empty stop table, stays Unknown.
+- **Bucket and score storage.** `enrichment` has no such columns, so they are in a versioned envelope inside `cost_breakdown`. Read with `readAnalysis`.
+- **Dependencies added:** `ai` 7.0.181 and `@ai-sdk/openai-compatible` 3.0.94, because the design names the Vercel AI SDK for the model layer. No others.
+- **Model IDs** checked 2026-11-23: Groq and SambaNova from their own `/models` lists (the first Groq ID I used returned 404), the others by a live call. Each can be overridden with `GEMINI_MODEL`, `GROQ_MODEL` and so on.
+
+### Commands run (with output)
+```
+$ npm run check          (before any change)
+ Test Files  18 passed (18)
+      Tests  300 passed | 1 skipped (301)
+
+$ npm run check          (final)
+ Test Files  27 passed (27)
+      Tests  522 passed | 1 skipped (523)
+(exit 0; the guards for fetch outside providers, banned sites, client env and Gmail scopes pass over the new code)
+
+$ npx vitest run tests/intake      Test Files  9 passed (9)    Tests  206 passed (206)
+$ npx vitest run tests/domain      Test Files  5 passed (5)    Tests  200 passed (200)   (16 new for likely)
+```
+"Done when": the six fixtures (Craigslist alert, Zillow alert with two listings, Facebook group email, SUPost item, extension page, Facebook batch with a roommate-wanted post) run end to end with a stub model and stub providers in `tests/intake/pipeline.test.ts`. Also covered: no email link is requested (`channels.test.ts`: real Gmail client, recording transport, only Gmail and OAuth hosts, `fetch` never called); a duplicate merges; a clear Fail skips enrichment (zero map calls); the capture endpoint rejects a wrong token (7 cases); injected instructions do not change the output (`extract.test.ts`).
+
+Mutation checks (each reverted right after):
+```
+cheap-filter early stop removed        Tests  2 failed | 191 passed
+capture token check always true        Tests  9 failed | 184 passed
+address dedupe disabled                Tests  2 failed | 191 passed
+number grounding disabled              Tests  1 failed | 192 passed
+```
+
+Live run (`npm run intake:once -- --channel supost --limit 8`, local `data/dev.db`):
+```
+== supost ==
+seen 91, new 7, deferred 83 (stored 7, skipped 1)
+#5  | supost | room   | all-in Unknown | commute Unknown | bucket needs_info  (no street address, so no commute)
+#6  | supost | studio | all-in Unknown | commute Unknown | bucket needs_info  (no street address, so no commute)
+#7  | supost | studio | all-in Unknown | commute Unknown | bucket needs_info  (no street address, so no commute)
+#8  | supost | room   | all-in Unknown | commute Unknown | bucket needs_info  (no street address, so no commute)
+#9  | supost | room   | all-in Unknown | commute Unknown | bucket fail  (failed early: Sublet ends Jan 7, 2027, before move-out on Aug 13, 2027)
+#10 | supost | room   | all-in Unknown | commute Unknown | bucket needs_info  (no street address, so no commute)
+#11 | supost | studio | all-in Unknown | commute Unknown | bucket fail  (failed early: Confirmed costs alone are $2,724.00 a month, over the $2,500.00 cap)
+```
+I compared each stored fact with its post text by hand. Rents, types, dates, sublet dates and private-bath claims match, and both Fails are correct. SUPost gives no street address, so these have no commute; that is expected. The first live run (rows cleared, then rerun after fixes) found three problems, all fixed and tested: a seeker post filed as a roommate lead, "private bedroom" inferred from the word "room", and a bare title passing the text-only scam checks. After the rerun I tightened the private-bedroom pattern once more (a "private bathroom" no longer counts as a private bedroom) and added the lease-type prompt rule; both are covered by unit tests, but I did not rerun the live SUPost poll after them.
+
+A second live run, one pasted listing with a street address (a neutral example address, row deleted afterwards), exercised the map path against the real APIs: geocode, a 22 minute transit commute (`api`), a 12 minute bike commute, grocery 3, gym 5 and cafes [7, 4, 5, 6, 9] minutes, with names. It scored 44.2 and landed in `needs_info`.
+
+Each provider answered a one-line probe: Gemini, OpenRouter and Z.ai OK. Groq and SambaNova failed on stale model IDs (404 and 503); I corrected them from their model lists afterwards and have not re-probed.
+
+### Open risks and things for Karthik
+1. **`src/proxy.ts` blocks both new routes (step 1 file, not edited).** It answers 401 to every `/api/` path without the login cookie, so `/api/capture` (the extension) and `/api/cron/intake` (Vercel Cron) cannot work in production until its matcher excludes `api/capture` and `api/cron`. Both have their own token checks. The handler logic is tested, but the routes were not exercised through Next.
+2. **`CRON_SECRET`** must be set in the Vercel project. It is not in `.env.example` (I may add only the one `CAPTURE_TOKEN` line). Without it the cron route refuses every call.
+3. **`transit_stops` is empty in my local `data/dev.db`**, and `npm run gtfs` needs `API_511_TOKEN` in the shell, which I cannot read. Until it is run, nearby stops stay Unknown and the transit filter is Needs info. Please run `npm run gtfs`.
+4. **`likely` will fire rarely.** The allowed Unknown lines are exactly the three you named, but a listing also needs the short-term premium and the non-refundable deposit known, and "no fees" does not state those. Adding those two lines to the allowed set is one line in `filters.ts`. Your call.
+5. **Fixed leases stay Unknown.** The model sets the lease type but never counts months, and the domain needs `leaseMonths` for a fixed lease. "Lease Jan 4 to Aug 10" therefore asks "How many months is the lease?". Deriving months from two stated dates belongs in the domain (step 4).
+6. **Email splitting is untested on real mail.** It runs on three invented samples; I did not read the mailbox. Please forward or paste one real Craigslist, Zillow and Facebook alert so the layout can be checked.
+7. **Transit pass price is mostly Unknown.** The routing provider returns line names only, with no agency or station names, so a pass resolves only when the line name says Caltrain, VTA, SamTrans or Marguerite, and a Caltrain zone is always Unknown. Exposing agency and stop names in `src/lib/providers/google.ts` (step 2) would fix this.
+8. **SUPost prices have no period.** A price on a short sublet may be a total, not a monthly rent. These fail on lease length before the cost matters.
+9. **Schema gap.** `enrichment` has no bucket or score column. A step 1 change would let the board sort in SQL.
+10. 83 of 91 SUPost posts were deferred by the live run's limit of 8; the daily cron processes up to 60 new posts per channel per run.

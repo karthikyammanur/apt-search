@@ -18,10 +18,13 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx src/db/migrate.ts",
     "db:seed": "tsx src/db/seed.ts",
-    "prepare": "husky"
+    "prepare": "husky",
+    "intake:once": "tsx src/lib/intake/cli.ts"
   },
   "dependencies": {
+    "@ai-sdk/openai-compatible": "^3.0.94",
     "@libsql/client": "^0.18.0",
+    "ai": "^7.0.181",
     "cn": "^0.5.2",
     "drizzle-orm": "^0.45.4",
     "fflate": "^0.8.3",

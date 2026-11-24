@@ -1,0 +1,20 @@
+[
+  {
+    "id": "msg-craigslist-1",
+    "file": "craigslist-alert.html",
+    "from": "CL Alerts <noreply@mail.craigslist.org>",
+    "subject": "new listings: furnished room palo alto"
+  },
+  {
+    "id": "msg-zillow-1",
+    "file": "zillow-alert.html",
+    "from": "Zillow <noreply@mail.zillow.com>",
+    "subject": "2 new homes match your search"
+  },
+  {
+    "id": "msg-facebook-1",
+    "file": "facebook-notification.html",
+    "from": "Facebook <notification@facebookmail.com>",
+    "subject": "Priya Raman posted in Bay Area Furnished Rentals & Sublets"
+  }
+]

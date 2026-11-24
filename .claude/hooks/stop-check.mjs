@@ -17,11 +17,12 @@ if (!existsSync("package.json")) process.exit(0);
 
 const result = spawnSync("npm run check --silent", {
   shell: true,
+  cwd: process.cwd().replace(/^[a-z]:/, (d) => d.toUpperCase()),
   encoding: "utf8",
   maxBuffer: 20 * 1024 * 1024,
 });
 const output = `${result.stdout ?? ""}${result.stderr ?? ""}`;
-writeFileSync(".claude/stop-hook.log", output);
+writeFileSync(".claude/stop-hook.log", `${process.cwd()}\n${output}`);
 
 if (result.status === 0) process.exit(0);
 

@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Board: ranked listings</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#F5F5F2}
+a{color:#1F4FD1}a:hover{color:#183E9F}
+</style>
+</helmet>
+<div style="min-height: 1060px; background: #F5F5F2; font-family: Inter, system-ui, sans-serif; color: #16181D">
+
+<header style="background: #FFFFFF; border-bottom: 1px solid #E2E2DC">
+<div style="max-width: 1280px; margin: 0 auto; padding: 12px 32px; box-sizing: border-box; display: flex; flex-wrap: wrap; align-items: center; gap: 12px 32px">
+<div style="font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 20px">Apartment finder</div>
+<nav aria-label="Main" style="display: flex; flex-wrap: wrap; gap: 4px">
+<a href="Main.dc.html" aria-current="page" style="padding: 12px 14px; border-radius: 8px; background: #E6EDFC; color: #183E9F; font-weight: 600; font-size: 15px; text-decoration: none">Board</a>
+<a href="Chat.dc.html" style="padding: 12px 14px; border-radius: 8px; color: #3B3F47; font-size: 15px; text-decoration: none">Chat</a>
+<a href="Leads.dc.html" style="padding: 12px 14px; border-radius: 8px; color: #3B3F47; font-size: 15px; text-decoration: none">Leads and sources</a>
+<a href="Settings.dc.html" style="padding: 12px 14px; border-radius: 8px; color: #3B3F47; font-size: 15px; text-decoration: none">Settings</a>
+</nav>
+<div style="margin-left: auto; display: flex; flex-wrap: wrap; align-items: center; gap: 12px">
+<span style="font-size: 14px; color: #5B5F68">Updated today, 8:00 am · 7 new</span>
+<button type="button" style="min-height: 44px; padding: 0 16px; border-radius: 10px; border: 1px solid #1F4FD1; background: #1F4FD1; color: #FFFFFF; font: 600 14px Inter, sans-serif; cursor: pointer">Check for new listings</button>
+</div>
+</div>
+</header>
+
+<main style="max-width: 1280px; margin: 0 auto; padding: 28px 32px 40px; box-sizing: border-box; display: flex; flex-direction: column; gap: 20px">
+
+<div style="display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px">
+<div>
+<h1 style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 32px; font-weight: 700">Your shortlist</h1>
+<p style="margin: 6px 0 0; font-size: 15px; color: #5B5F68">Ranked by how well each place fits you. Every number shows where it came from.</p>
+</div>
+<div style="display: flex; flex-wrap: wrap; gap: 8px">
+<span style="padding: 6px 12px; border-radius: 999px; background: #FFFFFF; border: 1px solid #E2E2DC; font-size: 13px">All-in cap <b>$2,500</b></span>
+<span style="padding: 6px 12px; border-radius: 999px; background: #FFFFFF; border: 1px solid #E2E2DC; font-size: 13px">Target <b>$1,600</b></span>
+<span style="padding: 6px 12px; border-radius: 999px; background: #FFFFFF; border: 1px solid #E2E2DC; font-size: 13px">Move in Jan 2 to 8</span>
+<span style="padding: 6px 12px; border-radius: 999px; background: #FFFFFF; border: 1px solid #E2E2DC; font-size: 13px">Out Aug 13</span>
+<span style="padding: 6px 12px; border-radius: 999px; background: #FFFFFF; border: 1px solid #E2E2DC; font-size: 13px">Commute 30 min max</span>
+<span style="padding: 6px 12px; border-radius: 999px; background: #FFFFFF; border: 1px solid #E2E2DC; font-size: 13px">Private bed and bath</span>
+<span style="padding: 6px 12px; border-radius: 999px; background: #FFFFFF; border: 1px solid #E2E2DC; font-size: 13px">Furnished</span>
+</div>
+</div>
+
+<div role="tablist" aria-label="Buckets" style="display: flex; flex-wrap: wrap; gap: 8px">
+<button type="button" role="tab" aria-selected="true" style="min-height: 44px; padding: 0 16px; border-radius: 10px; border: 1px solid #1F4FD1; background: #1F4FD1; color: #FFFFFF; font: 600 14px Inter, sans-serif">Passes · 3</button>
+<button type="button" role="tab" aria-selected="false" style="min-height: 44px; padding: 0 16px; border-radius: 10px; border: 1px solid #C9D6F7; background: #E6EDFC; color: #183E9F; font: 600 14px Inter, sans-serif">Likely passes · 2</button>
+<button type="button" role="tab" aria-selected="false" style="min-height: 44px; padding: 0 16px; border-radius: 10px; border: 1px solid #F0D7AE; background: #FCEFD9; color: #6E3B00; font: 600 14px Inter, sans-serif">Needs info · 6</button>
+<button type="button" role="tab" aria-selected="false" style="min-height: 44px; padding: 0 16px; border-radius: 10px; border: 1px solid #DADAD3; background: #ECECE8; color: #42454C; font: 600 14px Inter, sans-serif">Fails · 14</button>
+</div>
+
+<div style="display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-start">
+
+<section aria-label="Listings that pass" style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; gap: 14px">
+
+<article style="background: #FFFFFF; border: 1px solid #E2E2DC; border-radius: 14px; padding: 16px; display: flex; flex-wrap: wrap; gap: 18px">
+<div style="position: relative; width: 184px; height: 138px; border-radius: 10px; background: #D9DBD3; display: flex; align-items: flex-end; flex-shrink: 0">
+<span style="position: absolute; top: 8px; left: 8px; width: 28px; height: 28px; border-radius: 14px; background: #1F4FD1; color: #FFFFFF; font-size: 13px; font-weight: 700; display: flex; align-items: center; justify-content: center">1</span>
+<span style="margin: 8px; padding: 3px 8px; border-radius: 6px; background: #FFFFFF; font-size: 12px; color: #3B3F47">Listing photo · 6</span>
+</div>
+<div style="flex: 1 1 320px; min-width: 0; display: flex; flex-direction: column; gap: 12px">
+<div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-start; gap: 12px">
+<div style="min-width: 0">
+<h2 style="margin: 0; font-size: 17px; font-weight: 600">Furnished room with private bath in a 3BR house</h2>
+<p style="margin: 4px 0 0; font-size: 14px; color: #5B5F68">Palo Alto, near California Ave · Facebook group · found Nov 28</p>
+</div>
+<div style="text-align: right">
+<div style="font-family: 'Space Grotesk', sans-serif; font-size: 30px; font-weight: 700; line-height: 1">86</div>
+<div style="font-size: 12px; color: #5B5F68">fit score</div>
+</div>
+</div>
+<div style="display: flex; flex-wrap: wrap; gap: 8px 28px">
+<div><div style="font-size: 12px; color: #5B5F68">All-in per month</div><div style="font-size: 16px; font-weight: 600">$1,515</div></div>
+<div><div style="font-size: 12px; color: #5B5F68">Commute</div><div style="font-size: 16px; font-weight: 600">22 min transit</div></div>
+<div><div style="font-size: 12px; color: #5B5F68">Nearest stop</div><div style="font-size: 16px; font-weight: 600">4 min walk</div></div>
+<div><div style="font-size: 12px; color: #5B5F68">Roommates</div><div style="font-size: 16px; font-weight: 600">Met on video</div></div>
+</div>
+<p style="margin: 0; font-size: 14px; line-height: 1.5; color: #2E3138"><b style="color: #183E9F">Good:</b> $85 under your target, cafe 3 min away. <b style="color: #6E3B00">Weaker:</b> gym is a 14 min walk.</p>
+<div style="display: flex; flex-wrap: wrap; gap: 8px">
+<a href="Listing.dc.html" style="min-height: 44px; padding: 0 16px; border-radius: 10px; background: #16181D; color: #FFFFFF; font-size: 14px; font-weight: 600; text-decoration: none; display: inline-flex; align-items: center">Open details</a>
+<a href="Chat.dc.html" style="min-height: 44px; padding: 0 16px; border-radius: 10px; border: 1px solid #D5D6CF; color: #16181D; font-size: 14px; font-weight: 600; text-decoration: none; display: inline-flex; align-items: center">Ask about it</a>
+</div>
+</div>
+</article>
+
+<article style="background: #FFFFFF; border: 1px solid #E2E2DC; border-radius: 14px; padding: 16px; display: flex; flex-wrap: wrap; gap: 18px">
+<div style="position: relative; width: 184px; height: 138px; border-radius: 10px; background: #D9DBD3; display: flex; align-items: flex-end; flex-shrink: 0">
+<span style="position: absolute; top: 8px; left: 8px; width: 28px; height: 28px; border-radius: 14px; background: #1F4FD1; color: #FFFFFF; font-size: 13px; font-weight: 700; display: flex; align-items: center; justify-content: center">2</span>
+<span style="margin: 8px; padding: 3px 8px; border-radius: 6px; background: #FFFFFF; font-size: 12px; color: #3B3F47">Listing photo · 4</span>
+</div>
+<div style="flex: 1 1 320px; min-width: 0; display: flex; flex-direction: column; gap: 12px">
+<div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-start; gap: 12px">
+<div style="min-width: 0">
+<h2 style="margin: 0; font-size: 17px; font-weight: 600">Private room and bath in a 2BR apartment</h2>
+<p style="margin: 4px 0 0; font-size: 14px; color: #5B5F68">Mountain View, near San Antonio Caltrain · SUPost · found today</p>
+</div>
+<div style="text-align: right">
+<div style="font-family: 'Space Grotesk', sans-serif; font-size: 30px; font-weight: 700; line-height: 1">81</div>
+<div style="font-size: 12px; color: #5B5F68">fit score</div>
+</div>
+</div>
+<div style="display: flex; flex-wrap: wrap; gap: 8px 28px">
+<div><div style="font-size: 12px; color: #5B5F68">All-in per month</div><div style="font-size: 16px; font-weight: 600">$1,410</div></div>
+<div><div style="font-size: 12px; color: #5B5F68">Commute</div><div style="font-size: 16px; font-weight: 600">27 min transit</div></div>
+<div><div style="font-size: 12px; color: #5B5F68">Nearest stop</div><div style="font-size: 16px; font-weight: 600">6 min walk</div></div>
+<div><div style="font-size: 12px; color: #5B5F68">Roommates</div><div style="font-size: 16px; font-weight: 600">Call booked Thu</div></div>
+</div>
+<p style="margin: 0; font-size: 14px; line-height: 1.5; color: #2E3138"><b style="color: #183E9F">Good:</b> cheapest place that passes, utilities included. <b style="color: #6E3B00">Weaker:</b> 27 min leaves little slack if a train is late.</p>
+<div style="display: flex; flex-wrap: wrap; gap: 8px">
+<a href="Listing.dc.html" style="min-height: 44px; padding: 0 16px; border-radius: 10px; background: #16181D; color: #FFFFFF; font-size: 14px; font-weight: 600; text-decoration: none; display: inline-flex; align-items: center">Open details</a>
+<a href="Chat.dc.html" style="min-height: 44px; padding: 0 16px; border-radius: 10px; border: 1px solid #D5D6CF; color: #16181D; font-size: 14px; font-weight: 600; text-decoration: none; display: inline-flex; align-items: center">Ask about it</a>
+</div>
+</div>
+</article>
+
+<article style="background: #FFFFFF; border: 1px solid #E2E2DC; border-radius: 14px; padding: 16px; display: flex; flex-wrap: wrap; gap: 18px">
+<div style="position: relative; width: 184px; height: 138px; border-radius: 10px; background: #D9DBD3; display: flex; align-items: flex-end; flex-shrink: 0">
+<span style="position: absolute; top: 8px; left: 8px; width: 28px; height: 28px; border-radius: 14px; background: #1F4FD1; color: #FFFFFF; font-size: 13px; font-weight: 700; display: flex; align-items: center; justify-content: center">3</span>
+<span style="margin: 8px; padding: 3px 8px; border-radius: 6px; background: #FFFFFF; font-size: 12px; color: #3B3F47">Listing photo · 9</span>
+</div>
+<div style="flex: 1 1 320px; min-width: 0; display: flex; flex-direction: column; gap: 12px">
+<div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-start; gap: 12px">
+<div style="min-width: 0">
+<h2 style="margin: 0; font-size: 17px; font-weight: 600">Furnished studio ADU with its own entrance</h2>
+<p style="margin: 4px 0 0; font-size: 14px; color: #5B5F68">Menlo Park · Craigslist email alert · found Nov 26</p>
+</div>
+<div style="text-align: right">
+<div style="font-family: 'Space Grotesk', sans-serif; font-size: 30px; font-weight: 700; line-height: 1">74</div>
+<div style="font-size: 12px; color: #5B5F68">fit score</div>
+</div>
+</div>
+<div style="display: flex; flex-wrap: wrap; gap: 8px 28px">
+<div><div style="font-size: 12px; color: #5B5F68">All-in per month</div><div style="font-size: 16px; font-weight: 600">$2,040</div></div>
+<div><div style="font-size: 12px; color: #5B5F68">Commute</div><div style="font-size: 16px; font-weight: 600">19 min bike</div></div>
+<div><div style="font-size: 12px; color: #5B5F68">Nearest stop</div><div style="font-size: 16px; font-weight: 600">8 min walk</div></div>
+<div><div style="font-size: 12px; color: #5B5F68">Roommates</div><div style="font-size: 16px; font-weight: 600">None</div></div>
+</div>
+<p style="margin: 0; font-size: 14px; line-height: 1.5; color: #2E3138"><b style="color: #183E9F">Good:</b> no roommates, shortest commute. <b style="color: #6E3B00">Weaker:</b> $440 over your target, though still under the $2,500 cap.</p>
+<div style="display: flex; flex-wrap: wrap; gap: 8px">
+<a href="Listing.dc.html" style="min-height: 44px; padding: 0 16px; border-radius: 10px; background: #16181D; color: #FFFFFF; font-size: 14px; font-weight: 600; text-decoration: none; display: inline-flex; align-items: center">Open details</a>
+<a href="Chat.dc.html" style="min-height: 44px; padding: 0 16px; border-radius: 10px; border: 1px solid #D5D6CF; color: #16181D; font-size: 14px; font-weight: 600; text-decoration: none; display: inline-flex; align-items: center">Ask about it</a>
+</div>
+</div>
+</article>
+
+<p style="margin: 4px 0 0; font-size: 14px; color: #5B5F68">14 places failed and are hidden: 6 shared bathroom, 5 not furnished, 3 lease too short. Open the Fails tab to see why each one failed.</p>
+</section>
+
+<aside aria-label="Map and today's summary" style="flex: 1 1 380px; min-width: 0; display: flex; flex-direction: column; gap: 14px">
+<div style="background: #FFFFFF; border: 1px solid #E2E2DC; border-radius: 14px; padding: 16px; display: flex; flex-direction: column; gap: 12px">
+<h2 style="margin: 0; font-size: 15px; font-weight: 600">Where they are</h2>
+<svg viewBox="0 0 400 300" role="img" aria-label="Map of the Peninsula. Caltrain runs from Menlo Park to Mountain View. Listing 1 is by California Ave, listing 2 by San Antonio, listing 3 in Menlo Park, and your office is in Palo Alto." style="width: 100%; height: auto; border-radius: 10px; display: block">
+<rect width="400" height="300" fill="#ECEEE7"/>
+<path d="M0 90 L400 230" stroke="#FFFFFF" stroke-width="10"/>
+<path d="M60 0 L180 300" stroke="#FFFFFF" stroke-width="6"/>
+<path d="M240 0 L330 300" stroke="#FFFFFF" stroke-width="6"/>
+<path d="M30 30 L370 280" stroke="#5B5F68" stroke-width="4" stroke-dasharray="10 6"/>
+<circle cx="72" cy="61" r="6" fill="#FFFFFF" stroke="#16181D" stroke-width="2.5"/>
+<text x="84" y="52" font-family="Inter, sans-serif" font-size="12" fill="#2E3138">Menlo Park</text>
+<circle cx="132" cy="105" r="6" fill="#FFFFFF" stroke="#16181D" stroke-width="2.5"/>
+<text x="20" y="128" font-family="Inter, sans-serif" font-size="12" fill="#2E3138">Palo Alto</text>
+<circle cx="196" cy="152" r="6" fill="#FFFFFF" stroke="#16181D" stroke-width="2.5"/>
+<text x="92" y="176" font-family="Inter, sans-serif" font-size="12" fill="#2E3138">California Ave</text>
+<circle cx="276" cy="211" r="6" fill="#FFFFFF" stroke="#16181D" stroke-width="2.5"/>
+<text x="166" y="234" font-family="Inter, sans-serif" font-size="12" fill="#2E3138">San Antonio</text>
+<circle cx="334" cy="253" r="6" fill="#FFFFFF" stroke="#16181D" stroke-width="2.5"/>
+<text x="250" y="284" font-family="Inter, sans-serif" font-size="12" fill="#2E3138">Mountain View</text>
+<rect x="158" y="82" width="22" height="22" rx="5" fill="#C2560E"/>
+<text x="186" y="98" font-family="Inter, sans-serif" font-size="12" font-weight="700" fill="#7A3606">Office</text>
+<circle cx="214" cy="136" r="13" fill="#1F4FD1"/>
+<text x="214" y="141" text-anchor="middle" font-family="Inter, sans-serif" font-size="13" font-weight="700" fill="#FFFFFF">1</text>
+<circle cx="296" cy="196" r="13" fill="#1F4FD1"/>
+<text x="296" y="201" text-anchor="middle" font-family="Inter, sans-serif" font-size="13" font-weight="700" fill="#FFFFFF">2</text>
+<circle cx="96" cy="36" r="13" fill="#1F4FD1"/>
+<text x="96" y="41" text-anchor="middle" font-family="Inter, sans-serif" font-size="13" font-weight="700" fill="#FFFFFF">3</text>
+</svg>
+<p style="margin: 0; font-size: 13px; color: #5B5F68">Dashed line: Caltrain. Square: your office (from your private settings).</p>
+</div>
+
+<div style="background: #FFFFFF; border: 1px solid #E2E2DC; border-radius: 14px; padding: 16px; display: flex; flex-direction: column; gap: 10px">
+<h2 style="margin: 0; font-size: 15px; font-weight: 600">Since yesterday</h2>
+<ul style="margin: 0; padding-left: 18px; font-size: 14px; line-height: 1.6; color: #2E3138">
+<li>7 new listings: 1 passes, 2 need info, 4 fail</li>
+<li>2 landlords to message, questions already drafted</li>
+<li>1 roommate video call on Thursday</li>
+</ul>
+<a href="Chat.dc.html" style="font-size: 14px; font-weight: 600">Go through them in chat</a>
+</div>
+</aside>
+
+</div>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":1060}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

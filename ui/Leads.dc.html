@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Leads and sources</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#F5F5F2}
+a{color:#1F4FD1}a:hover{color:#183E9F}
+</style>
+</helmet>
+<div style="min-height: 1120px; background: #F5F5F2; font-family: Inter, system-ui, sans-serif; color: #16181D">
+
+<header style="background: #FFFFFF; border-bottom: 1px solid #E2E2DC">
+<div style="max-width: 1280px; margin: 0 auto; padding: 12px 32px; box-sizing: border-box; display: flex; flex-wrap: wrap; align-items: center; gap: 12px 32px">
+<div style="font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 20px">Apartment finder</div>
+<nav aria-label="Main" style="display: flex; flex-wrap: wrap; gap: 4px">
+<a href="Main.dc.html" style="padding: 12px 14px; border-radius: 8px; color: #3B3F47; font-size: 15px; text-decoration: none">Board</a>
+<a href="Chat.dc.html" style="padding: 12px 14px; border-radius: 8px; color: #3B3F47; font-size: 15px; text-decoration: none">Chat</a>
+<a href="Leads.dc.html" aria-current="page" style="padding: 12px 14px; border-radius: 8px; background: #E6EDFC; color: #183E9F; font-weight: 600; font-size: 15px; text-decoration: none">Leads and sources</a>
+<a href="Settings.dc.html" style="padding: 12px 14px; border-radius: 8px; color: #3B3F47; font-size: 15px; text-decoration: none">Settings</a>
+</nav>
+</div>
+</header>
+
+<main style="max-width: 1280px; margin: 0 auto; padding: 28px 32px 48px; box-sizing: border-box; display: flex; flex-direction: column; gap: 20px">
+
+<div>
+<h1 style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 32px; font-weight: 700">Leads and sources</h1>
+<p style="margin: 6px 0 0; font-size: 15px; color: #5B5F68">Where listings come from, and the people you might live with.</p>
+</div>
+
+<section style="background: #FFFFFF; border: 1px solid #E2E2DC; border-radius: 14px; padding: 20px">
+<h2 style="margin: 0 0 12px; font-size: 18px; font-weight: 600">Sources</h2>
+<div style="overflow-x: auto">
+<table style="width: 100%; min-width: 640px; border-collapse: collapse; font-size: 14px">
+<thead>
+<tr style="text-align: left; color: #5B5F68; border-bottom: 1px solid #E2E2DC">
+<th style="padding: 8px 0; font-weight: 600">Source</th><th style="padding: 8px 0; font-weight: 600">How it arrives</th><th style="padding: 8px 0; font-weight: 600">Last run</th><th style="padding: 8px 0; font-weight: 600">New</th><th style="padding: 8px 0; font-weight: 600">Status</th>
+</tr>
+</thead>
+<tbody>
+<tr style="border-bottom: 1px solid #EEEEE9"><td style="padding: 12px 0; font-weight: 600">SUPost</td><td>Checked every morning</td><td>Today, 8:00 am</td><td>4</td><td><span style="padding: 2px 8px; border-radius: 999px; background: #E6EDFC; color: #183E9F; font-size: 12px; font-weight: 600">Working</span></td></tr>
+<tr style="border-bottom: 1px solid #EEEEE9"><td style="padding: 12px 0; font-weight: 600">Email alerts</td><td>Craigslist, Zillow, HotPads saved searches, read-only from your housing-alerts label</td><td>Today, 8:00 am</td><td>3</td><td><span style="padding: 2px 8px; border-radius: 999px; background: #E6EDFC; color: #183E9F; font-size: 12px; font-weight: 600">Working</span></td></tr>
+<tr style="border-bottom: 1px solid #EEEEE9"><td style="padding: 12px 0; font-weight: 600">Facebook groups</td><td>You click Capture in the browser extension</td><td>Nov 28, 9:14 pm</td><td>0</td><td><span style="padding: 2px 8px; border-radius: 999px; background: #FCEFD9; color: #6E3B00; font-size: 12px; font-weight: 600">Capture due today</span></td></tr>
+<tr style="border-bottom: 1px solid #EEEEE9"><td style="padding: 12px 0; font-weight: 600">RentCast</td><td>Listings API</td><td>Never</td><td>0</td><td><span style="padding: 2px 8px; border-radius: 999px; background: #ECECE8; color: #42454C; font-size: 12px; font-weight: 600">Off: key rejected</span></td></tr>
+<tr><td style="padding: 12px 0; font-weight: 600">Pasted text</td><td>Paste any listing or message as a fallback</td><td>Nov 25</td><td>0</td><td><span style="padding: 2px 8px; border-radius: 999px; background: #E6EDFC; color: #183E9F; font-size: 12px; font-weight: 600">Ready</span></td></tr>
+</tbody>
+</table>
+</div>
+</section>
+
+<div style="display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-start">
+
+<section style="flex: 1 1 400px; min-width: 0; background: #FFFFFF; border: 1px solid #E2E2DC; border-radius: 14px; padding: 20px; display: flex; flex-direction: column; gap: 14px">
+<h2 style="margin: 0; font-size: 18px; font-weight: 600">Facebook groups: daily capture</h2>
+<p style="margin: 0; font-size: 14px; line-height: 1.5; color: #2E3138">Open one of your groups, scroll a bit, then click the extension. It reads only the posts on your screen, and only when you click. It never logs in or browses as you.</p>
+
+<div style="align-self: center; width: 340px; max-width: 100%; border-radius: 14px; border: 1px solid #D5D6CF; box-shadow: 0 8px 24px rgba(22,24,29,0.12); overflow: hidden">
+<div style="padding: 12px 16px; background: #16181D; color: #FFFFFF; font-size: 14px; font-weight: 600">Apartment finder capture</div>
+<div style="padding: 16px; display: flex; flex-direction: column; gap: 12px; background: #FFFFFF">
+<div style="font-size: 13px; color: #5B5F68">This page</div>
+<div style="font-size: 15px; font-weight: 600">Bay Area Rooms and Apartments</div>
+<div style="font-size: 14px; color: #2E3138">11 posts visible on screen</div>
+<button type="button" style="min-height: 44px; border-radius: 10px; border: 1px solid #1F4FD1; background: #1F4FD1; color: #FFFFFF; font: 600 15px Inter, sans-serif">Capture visible posts</button>
+<div style="padding: 10px 12px; border-radius: 10px; background: #F1F2EE; font-size: 13px; line-height: 1.5">Last capture: 11 posts. 3 room offers sent to the board, 2 people looking for roommates, 6 not relevant.</div>
+</div>
+</div>
+
+<div style="font-size: 13px; color: #5B5F68">Your groups: Bay Area Rooms and Apartments · SF Bay Area Rentals and Sublets · Bay Area Recent Grads Housing</div>
+</section>
+
+<section style="flex: 1 1 480px; min-width: 0; background: #FFFFFF; border: 1px solid #E2E2DC; border-radius: 14px; padding: 20px; display: flex; flex-direction: column; gap: 12px">
+<h2 style="margin: 0; font-size: 18px; font-weight: 600">Possible roommates</h2>
+<p style="margin: 0; font-size: 14px; color: #5B5F68">Nobody becomes a roommate here until you've met them on a video call.</p>
+
+<div style="border: 1px solid #E2E2DC; border-radius: 12px; padding: 14px; display: flex; flex-direction: column; gap: 8px">
+<div style="display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px">
+<b style="font-size: 15px">Intern starting in January, wants to split a 2BR near Caltrain</b>
+<span style="padding: 2px 8px; border-radius: 999px; background: #E6EDFC; color: #183E9F; font-size: 12px; font-weight: 600; align-self: flex-start">Video call Thu 7 pm</span>
+</div>
+<span style="font-size: 13px; color: #5B5F68">Bay Area Recent Grads Housing · budget about $1,500 each · Jan to Aug</span>
+</div>
+
+<div style="border: 1px solid #E2E2DC; border-radius: 12px; padding: 14px; display: flex; flex-direction: column; gap: 8px">
+<div style="display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px">
+<b style="font-size: 15px">Grad student with a room opening in a Palo Alto house</b>
+<span style="padding: 2px 8px; border-radius: 999px; background: #FCEFD9; color: #6E3B00; font-size: 12px; font-weight: 600; align-self: flex-start">You messaged, no reply</span>
+</div>
+<span style="font-size: 13px; color: #5B5F68">Bay Area Rooms and Apartments · posted Nov 27</span>
+</div>
+
+<div style="border: 1px solid #E2E2DC; border-radius: 12px; padding: 14px; display: flex; flex-direction: column; gap: 8px">
+<div style="display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px">
+<b style="font-size: 15px">New grad looking for one more person, Mountain View</b>
+<span style="padding: 2px 8px; border-radius: 999px; background: #ECECE8; color: #42454C; font-size: 12px; font-weight: 600; align-self: flex-start">Not contacted</span>
+</div>
+<span style="font-size: 13px; color: #5B5F68">SF Bay Area Rentals and Sublets · posted today</span>
+<div style="display: flex; flex-wrap: wrap; gap: 8px">
+<button type="button" style="min-height: 44px; padding: 0 14px; border-radius: 10px; border: 1px solid #16181D; background: #16181D; color: #FFFFFF; font: 600 14px Inter, sans-serif">Draft an intro</button>
+<button type="button" style="min-height: 44px; padding: 0 14px; border-radius: 10px; border: 1px solid #D5D6CF; background: #FFFFFF; color: #16181D; font: 600 14px Inter, sans-serif">Not a fit</button>
+</div>
+</div>
+</section>
+
+</div>
+
+<section style="background: #FFFFFF; border: 1px solid #E2E2DC; border-radius: 14px; padding: 20px; display: flex; flex-direction: column; gap: 10px">
+<label for="paste" style="font-size: 16px; font-weight: 600">Paste a listing</label>
+<p style="margin: 0; font-size: 14px; color: #5B5F68">For anything the app can't reach on its own, like a text from a friend or a post in a group chat.</p>
+<textarea id="paste" rows="3" placeholder="Paste the listing text or a link's contents here" style="width: 100%; box-sizing: border-box; padding: 12px; border-radius: 10px; border: 1px solid #D5D6CF; font: 14px/1.5 Inter, sans-serif"></textarea>
+<button type="button" style="align-self: flex-start; min-height: 44px; padding: 0 16px; border-radius: 10px; border: 1px solid #1F4FD1; background: #1F4FD1; color: #FFFFFF; font: 600 14px Inter, sans-serif">Check it</button>
+</section>
+
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":1120}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

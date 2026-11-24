@@ -1,0 +1,59 @@
+{
+  "routes": [
+    {
+      "duration": "847s",
+      "legs": [
+        {
+          "steps": [
+            {
+              "staticDuration": "12s",
+              "travelMode": "WALK"
+            },
+            {
+              "staticDuration": "39s",
+              "travelMode": "WALK"
+            },
+            {
+              "staticDuration": "95s",
+              "travelMode": "WALK"
+            },
+            {
+              "staticDuration": "600s",
+              "travelMode": "TRANSIT",
+              "transitDetails": {
+                "transitLine": {
+                  "name": "Local Weekday",
+                  "agencies": [
+                    {
+                      "name": "Caltrain"
+                    }
+                  ]
+                },
+                "stopDetails": {
+                  "departureStop": {
+                    "name": "Redwood City"
+                  },
+                  "arrivalStop": {
+                    "name": "California Avenue Train Station"
+                  }
+                }
+              }
+            },
+            {
+              "staticDuration": "63s",
+              "travelMode": "WALK"
+            },
+            {
+              "staticDuration": "4s",
+              "travelMode": "WALK"
+            },
+            {
+              "staticDuration": "33s",
+              "travelMode": "WALK"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

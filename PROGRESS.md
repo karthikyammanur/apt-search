@@ -662,3 +662,60 @@ sambanova vision model=gemma-4-31B-it: FAIL HTTP 402
 3. **SambaNova returns 402.** Check the account or billing; until then the chain falls through to Z.ai.
 4. The AI SDK warns that the `image` content part in `src/lib/llm/client.ts` is deprecated. It still works.
 5. A stop hook run once failed with every test file collecting 0 tests; it passed on rerun. The hook fix is a separate commit on this branch.
+
+## 2026-11-24, step 6a, Claude Code
+
+Data fixes and the shared UI base, so steps 6 and 7 do not need to touch the database or the app shell. Branch `step-6a-data`.
+
+### Changed
+- **Schema and migration** (`src/db/schema.ts`, `src/db/migrations/0002_data_fixes_6a.sql`): `listings.title`, `user_status` (none, shortlisted, rejected, default none) and `user_status_reason`; `facts.note`; `enrichment.bucket` and `enrichment.score` as real columns; new tables `chat_messages` and `feedback_events`; `transit_stops.schedule_basis` and `schedule_date`. The migration backfills bucket and score from the stored cost breakdown and the title from the first line of the raw text (140 characters at most).
+- **Read layer** (`src/lib/queries/`, new): `getBoard` (sorted in SQL by bucket, then score, nulls last), `getListing` (current facts with provenance, cost lines, filter results, score breakdown, commute legs, stops with schedule label, places, trust checks, photos, sources, roommates), `compareListings`, `getLeads`, `getSourceRuns`, `getSettings`, `updateSettings`, `setUserStatus`, `recordFact` (me or landlord only, recomputes), chat messages and feedback events with undo. Writes return `{ ok, data | error }`.
+- **Demo seed** (`src/db/demo.ts`, `src/db/seed-demo.ts`, script `npm run db:seed:demo`): 12 fictional listings (3 pass, 2 likely, 4 needs info, 3 fail), one with roommates, one per source, 3 roommate leads, 7 channel runs, 6 stops. Buckets and costs come from the domain code; the seed throws if a listing lands in the wrong bucket. It uses `config/settings.example.json` only and refuses a database that already has listings unless `--reset`.
+- **Extraction** (`src/lib/intake/schema.ts`, `extract.ts`, `store.ts`, `analysis.ts`): "apartment" or "whole place" counts as private-bedroom evidence only on whole-place posts; stated dates ("12th December", "Dec 6th to Dec 22", "12/15", "until December") fill the gaps the model left, and an open end becomes a sublet. `listings.title` is written on insert; `enrichmentColumns` writes bucket and score.
+- **Lease months** (`src/lib/domain/dates.ts`, `lease.ts`): `leaseMonthsBetween` derives the length from the stated dates (15 or more leftover days round up). A fixed lease that ends before move-out fails with a reason.
+- **Transit legs** (`src/lib/providers/google.ts`, `types.ts`, `src/lib/intake/enrich.ts`): the Routes call now asks for agency and stop names; `routeToLegs` uses them, and `stationName` turns "California Avenue Train Station" into the name the fare table knows. Caltrain zones can now be priced instead of staying Unknown.
+- **GTFS** (`scripts/gtfs/compute.ts`, `store.ts`): the schedule basis and date are stored per stop.
+- **AI SDK image part** (`src/lib/llm/client.ts`): `imagePart` builds the file part (`mediaType: "image"`), replacing the deprecated image part.
+- **Shared UI base**, minimal style from `docs/ui/README.md` (`src/app/globals.css`, `src/app/layout.tsx`, `src/components/app-header.tsx`): Inter only (Space Grotesk removed); tokens bg, ink, muted, line, field, fill, thumb, accent, attention; `max-w-column` (760 px), `min-h-touch` (44 px); `.bucket` and `.provenance` are text with a small dot, not filled chips. The header has the app name on the left and text nav on the right (Listings, Chat, Sources, Settings), the current page underlined with `aria-current="page"`, no background, border or icons.
+- **Tests** (new): `tests/queries/queries.test.ts`, `migration-backfill.test.ts`, `app-header.test.ts`; `tests/intake/supost-regressions.test.ts` (six recorded SUPost posts), `stated-dates.test.ts`, `llm-image-parts.test.ts`, `transit-pass.test.ts`; `tests/domain/lease-months.test.ts`. Edited: `tests/guards/tables.test.ts` (two new tables), `tests/transit/job.test.ts`, `tests/intake/extract.test.ts`.
+- **Fixture** `tests/fixtures/providers/google-transit-details.json`: one Routes response recorded by Karthik (Caltrain, Redwood City to California Avenue). Checked before commit: no key, token or coordinates; the only place names are the two stations.
+- `ui/` moved to `docs/ui/` (new minimal reference screens).
+
+### Commands run (with output)
+```
+$ npm run check          (before any change)
+ Test Files  29 passed (29)
+      Tests  552 passed | 1 skipped (553)
+
+$ npm run check          (final)
+ Test Files  37 passed (37)
+      Tests  672 passed | 1 skipped (673)
+
+$ npx next build
+Route (app): / , /_not-found, /api/capture, /api/cron/intake, /login  (build OK)
+
+$ cp data/dev.db <scratch>/dev-copy.db; DATABASE_URL=file:<scratch>/dev-copy.db npm run db:migrate
+Migrations applied.
+enrichment: { n: 6, with bucket: 6, buckets: 'needs_info' }
+listings:   { n: 6, with title: 6 }
+
+$ DATABASE_URL=file:<scratch>/demo-check.db npm run db:seed:demo   (empty database)
+Demo data written: 12 listings (pass 3, likely 2, needs_info 4, fail 3), 3 roommate leads, 7 channel runs, 6 transit stops.
+
+transit-pass.test.ts: recorded Redwood City to California Avenue ride prices a 2-zone pass at $150;
+California Ave to Palo Alto prices a 1-zone pass at $96; no stop names keeps the zone Unknown.
+```
+The AI SDK deprecation warning still prints during `npm run check`: it comes from `llm-image-parts.test.ts`, which sends the old format on purpose to show both produce the same request body. App code no longer uses it.
+
+No live calls except the one Google Routes request Karthik made to record the fixture. SUPost was not polled.
+
+### Assumptions
+- Weights stay in `preferences`, as design.md says; `getSettings` returns them with the settings.
+- Nav ids are `listings`, `chat`, `sources`, `settings`; "Sources" links to `/leads`. Detail, compare and requirements pages pass `current="listings"`.
+- Stop names from Google are matched to the fare table after removing "Station", "Train Station" and "Caltrain Station".
+
+### Open risks
+1. Files outside the narrow list were edited: `package.json` (the `db:seed:demo` script), `src/lib/providers/types.ts` (three optional step fields), `src/lib/intake/enrich.ts` (`routeToLegs`, approved), `tests/guards/tables.test.ts` (new tables).
+2. `stationName` only knows the Caltrain suffixes seen so far. Another agency's naming may leave a zone Unknown (safe, not wrong).
+3. Step 6 and 7 prompts should point at `docs/ui/`, not `ui/`.
+4. Listings stored before this step keep their old extraction; rerun intake or recheck to apply the date fixes.

@@ -13,7 +13,7 @@ beforeEach(async () => {
 });
 
 describe("migrations create every table", () => {
-  it("has the nine design tables, photos, and the four tables added in step 1b", async () => {
+  it("has the nine design tables, photos, the four tables added in step 1b and the two added in step 6a", async () => {
     const rows = await db.all<{ name: string }>(
       sql`select name from sqlite_master where type = 'table' and name not like 'sqlite_%' and name <> '__drizzle_migrations' order by name`,
     );
@@ -21,9 +21,11 @@ describe("migrations create every table", () => {
       "api_cache",
       "channel_runs",
       "chat",
+      "chat_messages",
       "enrichment",
       "facts",
       "feedback",
+      "feedback_events",
       "listings",
       "login_attempts",
       "photos",

@@ -3,6 +3,7 @@
 // default), month-to-month, a sublet that runs to move-out, or a longer lease with a written
 // break or sublet clause.
 
+import { leaseMonthsBetween } from "./dates";
 import { fmtDate } from "./format";
 import { acceptableLeaseMonths, type Stay } from "./stay";
 import type { ListingFacts, Question, Settings } from "./types";
@@ -59,7 +60,24 @@ export function analyzeLease(facts: ListingFacts, settings: Settings, stay: Stay
       : { status: "fail", reason: `Sublet ends ${fmtDate(end)}, before move-out on ${moveOut}`, questions: [], exit: null, breakFee: "not_applicable" };
   }
 
-  const months = facts.leaseMonths?.value;
+  // A fixed lease that ends before move-out cannot cover the stay, whatever its length.
+  const end = facts.leaseEnd?.value;
+  if (end !== undefined && end < settings.moveOut) {
+    return {
+      status: "fail",
+      reason: `Lease ends ${fmtDate(end)}, before move-out on ${moveOut}`,
+      questions: [],
+      exit: null,
+      breakFee: "not_applicable",
+    };
+  }
+
+  // A stated length wins. Otherwise a stated start and end give it, so there is nothing to ask.
+  const stated = facts.leaseMonths?.value;
+  const start = facts.availableFrom?.value;
+  const derived =
+    stated === undefined && start !== undefined && end !== undefined ? leaseMonthsBetween(start, end) : null;
+  const months = stated ?? derived ?? undefined;
   if (months === undefined) {
     return {
       status: "unknown",
@@ -69,6 +87,7 @@ export function analyzeLease(facts: ListingFacts, settings: Settings, stay: Stay
       breakFee: "possible",
     };
   }
+  const lease = stated === undefined ? `${months}-month lease (from its dates)` : `${months}-month lease`;
   const fit = acceptableLeaseMonths(stay);
   if (fit === null) {
     return { status: "unknown", reason: "Stay dates are invalid", questions: [], exit: null, breakFee: "possible" };
@@ -76,18 +95,18 @@ export function analyzeLease(facts: ListingFacts, settings: Settings, stay: Stay
   if (months < fit.min) {
     return {
       status: "fail",
-      reason: `${months}-month lease is shorter than the ${fit.min} to ${fit.max} months I need`,
+      reason: `${lease} is shorter than the ${fit.min} to ${fit.max} months I need`,
       questions: [],
       exit: null,
       breakFee: "not_applicable",
     };
   }
   if (months <= fit.max) {
-    return { status: "pass", reason: `${months}-month lease fits the stay`, questions: [], exit: "none_needed", breakFee: "not_applicable" };
+    return { status: "pass", reason: `${lease} fits the stay`, questions: [], exit: "none_needed", breakFee: "not_applicable" };
   }
 
   const clause = facts.exitClause?.value;
-  const longer = `${months}-month lease runs past move-out`;
+  const longer = `${lease} runs past move-out`;
   if (clause === undefined) {
     return { status: "unknown", reason: `${longer}; break or sublet clause is Unknown`, questions: [exitQuestion], exit: null, breakFee: "possible" };
   }

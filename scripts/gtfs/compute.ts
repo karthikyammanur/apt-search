@@ -126,6 +126,9 @@ export function agencyServiceDate(
   return { day: target, coverageEnd: end, basis: "service_date" };
 }
 
+const isoDay = (d: string) => `${d.slice(0, 4)}-${d.slice(4, 6)}-${d.slice(6, 8)}`;
+const earlierDay = (a: string | null, b: string) => (a === null || b < a ? b : a);
+
 export type StopResult = {
   feed: string;
   stopId: string;
@@ -136,8 +139,10 @@ export type StopResult = {
   weekdayRushDepartures: number;
   medianRushHeadwayMin: number | null;
   computedAt: string;
-  /** Not stored: transit_stops has no column for it. Printed by the job. */
+  /** Stored in transit_stops.schedule_basis, where "service_date" is written as "target_date". */
   scheduleBasis: ScheduleBasis;
+  /** ISO date the trips were counted on. With current_schedule, the earliest fallback day used. */
+  scheduleDate: string;
 };
 const timeSchema = z
   .string()
@@ -231,22 +236,27 @@ export async function compute(
   }
   // Each agency is counted on the chosen date, or on its own fallback date (see agencyServiceDate).
   const agencies: AgencyDate[] = [];
-  const agencyActive = new Map<string, { services: Set<string>; basis: ScheduleBasis }>();
+  const agencyActive = new Map<
+    string,
+    { services: Set<string>; basis: ScheduleBasis; day: string }
+  >();
   for (const [agencyId, ids] of [...agencyServiceIds].sort(([a], [b]) => a.localeCompare(b))) {
     const chosen = agencyServiceDate(day, ids, calendars, exceptions);
     agencies.push({ agencyId, name: agencyNames.get(agencyId) || agencyId, ...chosen });
     agencyActive.set(agencyId, {
       services: activeServices(chosen.day, calendars, exceptions),
       basis: chosen.basis,
+      day: chosen.day,
     });
   }
   const trips = new Map<string, string>();
-  const fallbackTrips = new Set<string>();
+  /** Trips counted on their agency's fallback day, with that day (YYYYMMDD). */
+  const fallbackTrips = new Map<string, string>();
   for (const t of allTrips) {
     const active = agencyActive.get(t.agency)!;
     if (!active.services.has(t.serviceId)) continue;
     trips.set(t.tripId, t.mode);
-    if (active.basis === "current_schedule") fallbackTrips.add(t.tripId);
+    if (active.basis === "current_schedule") fallbackTrips.set(t.tripId, active.day);
   }
   const frequencies = new Map<string, { start: number; end: number; gap: number }[]>();
   for await (const f of rows(
@@ -291,7 +301,8 @@ export async function compute(
       times: number[];
       beforeTimes: number[];
       modes: Set<string>;
-      fallback: boolean;
+      /** Earliest fallback day (YYYYMMDD) of a trip counted here, or null when none fell back. */
+      fallbackDay: string | null;
     }
   >();
   for await (const s of rows(
@@ -323,12 +334,13 @@ export async function compute(
         medianRushHeadwayMin: null,
         computedAt: today.toISOString(),
         scheduleBasis: "service_date",
+        scheduleDate: isoDay(day),
       },
       parent: s.parent_station,
       times: [],
       beforeTimes: [],
       modes: new Set(),
-      fallback: false,
+      fallbackDay: null,
     });
   }
   let missingTimes = 0,
@@ -379,7 +391,8 @@ export async function compute(
       }
       if (!t.departure_time && !t.arrival_time) interpolatedTimes++;
       const counted = expand(departure, base);
-      if (counted.length && fallbackTrips.has(tripId)) stop.fallback = true;
+      const fallbackDay = fallbackTrips.get(tripId);
+      if (counted.length && fallbackDay) stop.fallbackDay = earlierDay(stop.fallbackDay, fallbackDay);
       stop.times.push(...counted);
     }
   }
@@ -390,7 +403,7 @@ export async function compute(
       if (parent) {
         parent.times.push(...stop.times);
         parent.beforeTimes.push(...stop.beforeTimes);
-        if (stop.fallback) parent.fallback = true;
+        if (stop.fallbackDay) parent.fallbackDay = earlierDay(parent.fallbackDay, stop.fallbackDay);
         for (const mode of stop.modes) parent.modes.add(mode);
       }
     }
@@ -407,7 +420,8 @@ export async function compute(
     })),
     stops: [...stops.values()].map((s) => ({
       ...s.result,
-      scheduleBasis: s.fallback ? ("current_schedule" as const) : ("service_date" as const),
+      scheduleBasis: s.fallbackDay ? ("current_schedule" as const) : ("service_date" as const),
+      scheduleDate: isoDay(s.fallbackDay ?? day),
       modes: [...s.modes].sort(),
       weekdayRushDepartures: s.times.length,
       medianRushHeadwayMin: median(s.times),

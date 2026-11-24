@@ -17,7 +17,16 @@ export const routeInput = z
   .refine((v) => v.mode !== "TRANSIT" || v.arriveBy !== undefined);
 export type Route = {
   minutes: number;
-  steps: { mode: string; lineName: string | null; minutes: number | null }[];
+  steps: {
+    mode: string;
+    lineName: string | null;
+    minutes: number | null;
+    /** Transit steps only, when the provider names them. Absent or null means Unknown. */
+    agencyName?: string | null;
+    /** Where I board and get off, such as "Palo Alto Caltrain" (needed for Caltrain zones). */
+    departureStop?: string | null;
+    arrivalStop?: string | null;
+  }[];
 };
 export const seconds = z.number().finite().nonnegative();
 export const duration = z.string().regex(/^\d+(\.\d+)?s$/);

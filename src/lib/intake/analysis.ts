@@ -1,9 +1,11 @@
 // Stage: cost, filters, score. Calls the pure domain functions and nothing else, so no number
-// here comes from a model. The result is stored in `enrichment.cost_breakdown` as one versioned
-// envelope, because the table has no bucket or score column (a step 1 change, see PROGRESS.md).
+// here comes from a model. The full result is stored in `enrichment.cost_breakdown` as one
+// versioned envelope, and its bucket and score are also written to the `enrichment.bucket` and
+// `enrichment.score` columns so the board can filter and sort in SQL.
 //
-// Readers (the chat tools and the screens) should call `readAnalysis`, which validates the
-// envelope, rather than reading the JSON directly.
+// Readers that need the details (cost lines, filter reasons) should call `readAnalysis`, which
+// validates the envelope, rather than reading the JSON directly. It also reads rows written
+// before the columns existed.
 
 import { eq } from "drizzle-orm";
 import { z } from "zod";
@@ -90,6 +92,8 @@ export function enrichmentColumns(analysis: Analysis, scamChecks: unknown) {
     costBreakdown: analysis,
     allInMonthly: analysis.cost.allInMonthlyCents,
     allInPlusTransit: analysis.cost.allInPlusTransitCents,
+    bucket: analysis.bucket,
+    score: analysis.score?.score ?? null,
     scamChecks,
   };
 }

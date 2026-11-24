@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Browser extension popup</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#FFFFFF}
+</style>
+</helmet>
+<div style="width: 320px; height: 280px; box-sizing: border-box; padding: 20px; background: #FFFFFF; font-family: Inter, system-ui, sans-serif; color: #111111; display: flex; flex-direction: column; gap: 14px">
+<div style="font-size: 14px; font-weight: 600">Apartment finder</div>
+<div>
+<div style="font-size: 15px">Bay Area Rooms and Apartments</div>
+<div style="margin-top: 2px; font-size: 13px; color: #6B6E76">11 posts on screen</div>
+</div>
+<button type="button" style="min-height: 48px; border-radius: 10px; border: 0; background: #111111; font: 500 15px Inter, sans-serif; color: #FFFFFF; cursor: pointer">Capture visible posts</button>
+<p style="margin: 0; font-size: 13px; line-height: 1.5; color: #6B6E76">Last time: 3 rooms added, 2 roommate leads, 6 skipped.</p>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":320,"height":280}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

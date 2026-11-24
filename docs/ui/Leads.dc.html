@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Sources</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#FFFFFF}
+a{color:#111111}a:hover{color:#1F4FD1}
+</style>
+</helmet>
+<div style="min-height: 1000px; background: #FFFFFF; font-family: Inter, system-ui, sans-serif; color: #111111">
+
+<header style="max-width: 760px; margin: 0 auto; padding: 20px 24px 0; box-sizing: border-box; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 24px">
+<a href="Main.dc.html" style="font-size: 16px; font-weight: 600; text-decoration: none; padding: 12px 0">Apartment finder</a>
+<nav aria-label="Main" style="display: flex; flex-wrap: wrap; gap: 24px">
+<a href="Main.dc.html" style="font-size: 15px; padding: 12px 0; color: #6B6E76; text-decoration: none">Listings</a>
+<a href="Chat.dc.html" style="font-size: 15px; padding: 12px 0; color: #6B6E76; text-decoration: none">Chat</a>
+<a href="Leads.dc.html" aria-current="page" style="font-size: 15px; padding: 12px 0; text-decoration: underline; text-underline-offset: 6px">Sources</a>
+<a href="Settings.dc.html" style="font-size: 15px; padding: 12px 0; color: #6B6E76; text-decoration: none">Settings</a>
+</nav>
+</header>
+
+<main style="max-width: 760px; margin: 0 auto; padding: 48px 24px 64px; box-sizing: border-box">
+
+<h1 style="margin: 0; font-size: 28px; font-weight: 600; letter-spacing: -0.01em">Sources</h1>
+
+<ul style="margin: 24px 0 0; padding: 0; list-style: none; font-size: 15px; border-top: 1px solid #ECECEC">
+<li style="display: flex; justify-content: space-between; gap: 16px; padding: 16px 0; border-bottom: 1px solid #ECECEC"><span>SUPost</span><span style="color: #6B6E76">4 new today</span></li>
+<li style="display: flex; justify-content: space-between; gap: 16px; padding: 16px 0; border-bottom: 1px solid #ECECEC"><span>Email alerts</span><span style="color: #6B6E76">3 new today</span></li>
+<li style="display: flex; justify-content: space-between; gap: 16px; padding: 16px 0; border-bottom: 1px solid #ECECEC"><span>Facebook groups</span><span style="color: #8A4B00">Capture due, last one 5 days ago</span></li>
+<li style="display: flex; justify-content: space-between; gap: 16px; padding: 16px 0; border-bottom: 1px solid #ECECEC"><span>RentCast</span><span style="color: #6B6E76">Off</span></li>
+</ul>
+<p style="margin: 14px 0 0; font-size: 14px; color: #6B6E76">For Facebook, open a group, scroll a little, and click the extension. It only reads what's on your screen.</p>
+
+<h2 style="margin: 56px 0 0; font-size: 15px; font-weight: 600">Possible roommates</h2>
+<p style="margin: 4px 0 0; font-size: 14px; color: #6B6E76">Only after you've met on video.</p>
+<ul style="margin: 16px 0 0; padding: 0; list-style: none; font-size: 15px; border-top: 1px solid #ECECEC">
+<li style="display: flex; justify-content: space-between; gap: 16px; padding: 16px 0; border-bottom: 1px solid #ECECEC"><span>Intern, wants to split a 2BR near Caltrain</span><span style="color: #1F4FD1">Call Thu 7 pm</span></li>
+<li style="display: flex; justify-content: space-between; gap: 16px; padding: 16px 0; border-bottom: 1px solid #ECECEC"><span>Grad student, room in a Palo Alto house</span><span style="color: #6B6E76">Waiting on reply</span></li>
+<li style="display: flex; justify-content: space-between; gap: 16px; padding: 16px 0; border-bottom: 1px solid #ECECEC"><span>New grad, Mountain View</span><a href="Chat.dc.html" style="color: #6B6E76">Draft an intro</a></li>
+</ul>
+
+<h2 style="margin: 56px 0 12px; font-size: 15px; font-weight: 600"><label for="paste">Paste a listing</label></h2>
+<textarea id="paste" rows="3" placeholder="From a text, a group chat, anywhere" style="display: block; width: 100%; box-sizing: border-box; padding: 14px; border-radius: 10px; border: 1px solid #DDDDDA; font: 15px/1.5 Inter, sans-serif; color: #111111; resize: vertical"></textarea>
+<button type="button" style="margin-top: 10px; min-height: 44px; padding: 0 18px; border-radius: 10px; border: 0; background: #111111; font: 500 14px Inter, sans-serif; color: #FFFFFF; cursor: pointer">Check it</button>
+
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":1000}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

@@ -38,7 +38,14 @@ export const googleRoutesSchema = z.object({
                     transitLine: z.object({
                       name: z.string().optional(),
                       nameShort: z.string().optional(),
+                      agencies: z.array(z.object({ name: z.string().optional() })).optional(),
                     }),
+                    stopDetails: z
+                      .object({
+                        departureStop: z.object({ name: z.string().optional() }).optional(),
+                        arrivalStop: z.object({ name: z.string().optional() }).optional(),
+                      })
+                      .optional(),
                   })
                   .optional(),
               }),
@@ -97,7 +104,7 @@ export function createGoogle(options: ClientOptions = {}) {
                 "Content-Type": "application/json",
                 "X-Goog-Api-Key": key(),
                 "X-Goog-FieldMask":
-                  "routes.duration,routes.legs.steps.staticDuration,routes.legs.steps.travelMode,routes.legs.steps.transitDetails.transitLine",
+                  "routes.duration,routes.legs.steps.staticDuration,routes.legs.steps.travelMode,routes.legs.steps.transitDetails.transitLine,routes.legs.steps.transitDetails.stopDetails",
               },
               body: JSON.stringify({
                 origin: waypoint(from),
@@ -117,17 +124,24 @@ export function createGoogle(options: ClientOptions = {}) {
           return {
             minutes: minutes(parseFloat(route.duration)),
             steps: route.legs.flatMap((leg) =>
-              leg.steps.map((step) => ({
-                mode: step.travelMode,
-                lineName:
-                  step.transitDetails?.transitLine.nameShort ??
-                  step.transitDetails?.transitLine.name ??
-                  null,
-                minutes:
-                  step.staticDuration === undefined
-                    ? null
-                    : minutes(parseFloat(step.staticDuration)),
-              })),
+              leg.steps.map((step) => {
+                const details = step.transitDetails;
+                return {
+                  mode: step.travelMode,
+                  lineName: details?.transitLine.nameShort ?? details?.transitLine.name ?? null,
+                  minutes:
+                    step.staticDuration === undefined
+                      ? null
+                      : minutes(parseFloat(step.staticDuration)),
+                  ...(details
+                    ? {
+                        agencyName: details.transitLine.agencies?.[0]?.name ?? null,
+                        departureStop: details.stopDetails?.departureStop?.name ?? null,
+                        arrivalStop: details.stopDetails?.arrivalStop?.name ?? null,
+                      }
+                    : {}),
+                };
+              }),
             ),
           };
         },

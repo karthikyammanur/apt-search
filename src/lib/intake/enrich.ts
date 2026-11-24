@@ -78,13 +78,21 @@ const AGENCY_WORDS: [RegExp, string][] = [
   [/marguerite|stanford/i, "marguerite"],
 ];
 
+/** "California Avenue Train Station" gives "California Avenue", the name the fare zone table knows. */
+export function stationName(name: string | null | undefined): string | null {
+  const cleaned = name?.replace(/\b(?:caltrain\s+)?(?:train\s+)?station\b/gi, " ").replace(/\s+/g, " ").trim();
+  return cleaned || null;
+}
+
 /**
- * Route steps from the routing provider carry a mode and a line name, but no agency or station
- * names. The agency is inferred from the line name when it says so. Stop names stay null, so a
- * Caltrain fare zone stays Unknown rather than guessed.
+ * Turn the routing provider's steps into legs. A transit step's agency is the provider's agency
+ * name when it gives one, else inferred from the line name. Boarding and alighting stop names
+ * come from the provider, so a Caltrain fare zone can be priced; without them they stay null and
+ * the zone stays Unknown rather than guessed.
  */
 export function routeToLegs(route: Route): ListingFactValues["commuteRoute"] {
-  const legs = route.steps.flatMap((step) => {
+  type Leg = ListingFactValues["commuteRoute"]["legs"][number];
+  const legs = route.steps.flatMap((step): Leg[] => {
     const mode =
       step.mode.toUpperCase() === "WALK"
         ? ("walk" as const)
@@ -94,8 +102,10 @@ export function routeToLegs(route: Route): ListingFactValues["commuteRoute"] {
             ? ("transit" as const)
             : null;
     if (!mode) return [];
-    const agency = AGENCY_WORDS.find(([pattern]) => pattern.test(step.lineName ?? ""))?.[1] ?? null;
-    return [{ mode, agency, from: null, to: null }];
+    if (mode !== "transit") return [{ mode, agency: null, from: null, to: null }];
+    const named = (text: string | null | undefined) => AGENCY_WORDS.find(([pattern]) => pattern.test(text ?? ""))?.[1] ?? null;
+    const agency = named(step.agencyName) ?? named(step.lineName);
+    return [{ mode, agency, from: stationName(step.departureStop), to: stationName(step.arrivalStop) }];
   });
   return { legs };
 }

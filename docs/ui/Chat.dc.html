@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Chat</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#FFFFFF}
+a{color:#111111}a:hover{color:#1F4FD1}
+</style>
+</helmet>
+<div style="min-height: 960px; background: #FFFFFF; font-family: Inter, system-ui, sans-serif; color: #111111; display: flex; flex-direction: column">
+
+<header style="width: 100%; max-width: 760px; margin: 0 auto; padding: 20px 24px 0; box-sizing: border-box; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 24px">
+<a href="Main.dc.html" style="font-size: 16px; font-weight: 600; text-decoration: none; padding: 12px 0">Apartment finder</a>
+<nav aria-label="Main" style="display: flex; flex-wrap: wrap; gap: 24px">
+<a href="Main.dc.html" style="font-size: 15px; padding: 12px 0; color: #6B6E76; text-decoration: none">Listings</a>
+<a href="Chat.dc.html" aria-current="page" style="font-size: 15px; padding: 12px 0; text-decoration: underline; text-underline-offset: 6px">Chat</a>
+<a href="Leads.dc.html" style="font-size: 15px; padding: 12px 0; color: #6B6E76; text-decoration: none">Sources</a>
+<a href="Settings.dc.html" style="font-size: 15px; padding: 12px 0; color: #6B6E76; text-decoration: none">Settings</a>
+</nav>
+</header>
+
+<main style="flex: 1 1 auto; width: 100%; max-width: 760px; margin: 0 auto; padding: 40px 24px 0; box-sizing: border-box; display: flex; flex-direction: column; gap: 28px; font-size: 15px; line-height: 1.6">
+
+<div style="align-self: flex-end; max-width: 80%; padding: 10px 16px; border-radius: 18px; background: #F2F2F0">anything new today under 1,400?</div>
+
+<div>
+<p style="margin: 0">Nothing that passes is under $1,400 yet. The closest is the Mountain View room at <b style="font-weight: 600">$1,410</b>. Two cheaper rooms are missing facts:</p>
+<div style="margin-top: 12px; border-top: 1px solid #ECECEC">
+<div style="display: flex; justify-content: space-between; gap: 16px; padding: 12px 0; border-bottom: 1px solid #ECECEC"><span>Room near Stanford, $1,250</span><span style="color: #8A4B00">bath and furniture unknown</span></div>
+<div style="display: flex; justify-content: space-between; gap: 16px; padding: 12px 0; border-bottom: 1px solid #ECECEC"><span>Room in Sunnyvale, $1,300</span><span style="color: #8A4B00">end date unknown</span></div>
+</div>
+<button type="button" style="margin-top: 12px; min-height: 44px; padding: 0 16px; border-radius: 10px; border: 1px solid #DDDDDA; background: #FFFFFF; font: 500 14px Inter, sans-serif; color: #111111; cursor: pointer">Draft both questions</button>
+</div>
+
+<div style="align-self: flex-end; max-width: 80%; padding: 10px 16px; border-radius: 18px; background: #F2F2F0">the gym doesnt matter that much, i care more about cafes</div>
+
+<div>
+<p style="margin: 0">Done. The Palo Alto room moves up to 88, and the Menlo Park studio drops to 71.</p>
+<p style="margin: 6px 0 0; font-size: 14px; color: #6B6E76">Gym weight 0.12 to 0.06, cafes 0.06 to 0.12. <button type="button" style="min-height: 44px; padding: 0; border: 0; background: none; font: 14px Inter, sans-serif; color: #6B6E76; text-decoration: underline; cursor: pointer">Undo</button></p>
+</div>
+
+<div style="align-self: flex-end; max-width: 80%; padding: 10px 16px; border-radius: 18px; background: #F2F2F0">why is menlo park lower if its closer</div>
+
+<p style="margin: 0">It saves you 3 minutes a day but costs $525 more a month, and price counts most in your settings. If no roommates matters to you, say so and I'll weigh it.</p>
+
+</main>
+
+<form style="width: 100%; max-width: 760px; margin: 0 auto; padding: 24px 24px 32px; box-sizing: border-box; display: flex; gap: 10px">
+<label for="ask" style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Message</label>
+<input id="ask" type="text" placeholder="Ask anything, or paste a listing" style="flex: 1 1 auto; min-width: 0; min-height: 52px; padding: 0 18px; border-radius: 26px; border: 1px solid #DDDDDA; font: 15px Inter, sans-serif; color: #111111">
+<button type="submit" style="min-height: 52px; padding: 0 22px; border-radius: 26px; border: 0; background: #111111; font: 500 15px Inter, sans-serif; color: #FFFFFF; cursor: pointer">Send</button>
+</form>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":960}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

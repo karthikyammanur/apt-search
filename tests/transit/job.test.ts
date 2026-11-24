@@ -7,6 +7,7 @@ import { createClient } from "@libsql/client";
 import { drizzle } from "drizzle-orm/libsql";
 import * as schema from "../../src/db/schema";
 import { transitStops } from "../../src/db/schema";
+import { runMigrations } from "../../src/db/run-migrations";
 import { agencyServiceDate, compute } from "../../scripts/gtfs/compute";
 import { download, extract } from "../../scripts/gtfs/download";
 import { upsertStops } from "../../scripts/gtfs/store";
@@ -37,9 +38,7 @@ it("extracts a ZIP and upserts computed results idempotently", async () => {
   const client = createClient({ url: ":memory:" });
   const db = drizzle(client, { schema });
   try {
-    await db.run(`CREATE TABLE transit_stops (feed TEXT NOT NULL, stop_id TEXT NOT NULL, name TEXT NOT NULL,
-      lat REAL NOT NULL, lng REAL NOT NULL, modes TEXT NOT NULL, weekday_rush_departures INTEGER NOT NULL,
-      median_rush_headway_min INTEGER, computed_at TEXT NOT NULL, PRIMARY KEY(feed, stop_id))`);
+    await runMigrations(db);
     await upsertStops(db, result.stops);
     await upsertStops(
       db,
@@ -49,6 +48,7 @@ it("extracts a ZIP and upserts computed results idempotently", async () => {
     expect(saved).toHaveLength(2);
     expect(saved.every((s) => s.name === "Updated")).toBe(true);
     expect(saved.find((s) => s.stopId === "B")?.medianRushHeadwayMin).toBe(25);
+    expect(saved.every((s) => s.scheduleBasis === "target_date" && s.scheduleDate === "2027-01-12")).toBe(true);
   } finally {
     client.close();
   }
@@ -156,6 +156,20 @@ it("falls back per agency to the same weekday in its last covered week, and labe
     ["A", 2, "service_date"],
     ["B", 3, "current_schedule"],
   ]);
+  // The label and the day actually counted are written to transit_stops.
+  const client = createClient({ url: ":memory:" });
+  const db = drizzle(client, { schema });
+  try {
+    await runMigrations(db);
+    await upsertStops(db, result.stops);
+    const saved = await db.select().from(transitStops).orderBy(transitStops.stopId);
+    expect(saved.map((s) => [s.stopId, s.scheduleBasis, s.scheduleDate])).toEqual([
+      ["A", "target_date", "2027-01-12"],
+      ["B", "current_schedule", "2027-01-05"],
+    ]);
+  } finally {
+    client.close();
+  }
 });
 
 it("does not fall back when the agency's calendar covers the date", async () => {

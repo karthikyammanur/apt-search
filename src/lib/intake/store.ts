@@ -30,6 +30,14 @@ export function sourceLinkFor(raw: Pick<RawListing, "source" | "url">, seenAt: s
   return raw.url ? { source: raw.source, url: raw.url, seen_at: seenAt } : null;
 }
 
+const TITLE_MAX = 140;
+
+/** A card headline: the post's own title, else the first non-empty line of its text. */
+export function listingTitle(raw: Pick<RawListing, "title" | "text">): string | null {
+  const first = raw.title?.trim() || raw.text.split(/\r?\n/).find((line) => line.trim() !== "")?.trim() || "";
+  return first ? first.slice(0, TITLE_MAX) : null;
+}
+
 export async function insertListing(
   db: Db,
   raw: RawListing,
@@ -43,6 +51,7 @@ export async function insertListing(
       source: raw.source,
       url: raw.url,
       rawText: raw.text,
+      title: listingTitle(raw),
       type: draft.facts.type ?? null,
       postType: draft.postType,
       address: draft.address,

@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { facts as factsTable } from "@/db/schema";
 import { START, END, buildPrompt, extractListing, wrapListingText } from "@/lib/intake/extract";
 import { processRaw } from "@/lib/intake/pipeline";
-import { isGrounded, numbersIn, toDraft } from "@/lib/intake/schema";
+import { isGrounded, numbersIn, toDraft, type Extraction } from "@/lib/intake/schema";
 import { validateDraft } from "@/lib/intake/validate";
 import type { RawListing } from "@/lib/intake/types";
 import { FIXTURE_REPLIES, emailFixture, extraction, makeDeps, settings, stubLlm } from "./helpers";
@@ -68,7 +68,12 @@ describe("toDraft", () => {
     { name: "private bedroom with 'private room'", field: "private_bedroom", value: true, text: "Private room for rent", dropped: false },
     { name: "private bedroom from only a private bathroom", field: "private_bedroom", value: true, text: "Room with a private bathroom until December", dropped: true },
     { name: "private bedroom with 'private furnished bedroom'", field: "private_bedroom", value: true, text: "Private furnished bedroom in Mountain View", dropped: false },
-    { name: "private bedroom for a studio", field: "private_bedroom", value: true, text: "Studio for rent", dropped: false },
+    { name: "private bedroom for a studio", field: "private_bedroom", value: true, text: "Studio for rent", dropped: false, extra: { post_type: "whole_place_offered", type: "studio" } },
+    { name: "private bedroom from 'apartment' on a room post", field: "private_bedroom", value: true, text: "Room in 2B1B Apartment in Menlo Park", dropped: true, extra: { type: "room" } },
+    { name: "private bath from 'apartment' on a room post", field: "private_bath", value: true, text: "Room in 2B1B Apartment in Menlo Park", dropped: true, extra: { type: "room" } },
+    { name: "private bedroom with '1 bedroom available in'", field: "private_bedroom", value: true, text: "1 bedroom available in a 3BR house", dropped: false, extra: { type: "room" } },
+    { name: "private bedroom with 'your own room'", field: "private_bedroom", value: true, text: "Shared house, your own room, two bathrooms", dropped: false, extra: { type: "room" } },
+    { name: "private bedroom from '1b1b' on a whole place", field: "private_bedroom", value: true, text: "1b1b near campus", dropped: false, extra: { post_type: "whole_place_offered", type: "apartment" } },
     { name: "private bath with no mention", field: "private_bath", value: true, text: "Nice room near the train", dropped: true },
     { name: "private bath with its own bathroom", field: "private_bath", value: true, text: "Room with its own bathroom", dropped: false },
     { name: "shared bath claimed with no mention", field: "private_bath", value: false, text: "Nice room near the train", dropped: true },
@@ -76,8 +81,8 @@ describe("toDraft", () => {
     { name: "unfurnished claimed with no mention", field: "furnished", value: false, text: "Room for rent", dropped: true },
     { name: "unfurnished stated", field: "furnished", value: false, text: "Unfurnished room", dropped: false },
     { name: "utilities included with no mention", field: "utilities_included", value: true, text: "Room for rent $900", dropped: true },
-  ])("a dealbreaker claim needs words behind it: $name", ({ field, value, text, dropped }) => {
-    const draft = toDraft(extraction({ post_type: "room_offered", [field]: value }), text);
+  ] as { name: string; field: string; value: boolean; text: string; dropped: boolean; extra?: Partial<Extraction> }[])("a dealbreaker claim needs words behind it: $name", ({ field, value, text, dropped, extra }) => {
+    const draft = toDraft(extraction({ post_type: "room_offered", ...extra, [field]: value }), text);
     const key = { private_bedroom: "privateBedroom", private_bath: "privateBath", furnished: "furnished", utilities_included: "utilitiesIncluded" }[field] as string;
     expect(Object.hasOwn(draft.facts, key)).toBe(!dropped);
     expect(draft.issues.some((issue) => issue.includes("no support"))).toBe(dropped);

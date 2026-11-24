@@ -56,6 +56,20 @@ export function validateImages(images: LlmImage[]): boolean {
   );
 }
 
+/**
+ * One image as an AI SDK file part. A data: URL is split into its media type and base64 payload;
+ * raw bytes get the top-level type "image" and the provider detects the rest. Only call this on
+ * images that passed validateImages, so a string is always a data: URL, never a remote link.
+ */
+export function imagePart(image: LlmImage) {
+  if (typeof image === "string") {
+    const comma = image.indexOf(",");
+    const mediaType = /^data:(image\/[a-z0-9.+-]+);base64$/i.exec(image.slice(0, comma))?.[1] ?? "image";
+    return { type: "file" as const, mediaType, data: { type: "data" as const, data: image.slice(comma + 1) } };
+  }
+  return { type: "file" as const, mediaType: "image", data: { type: "data" as const, data: image } };
+}
+
 const defaultComplete: CompleteFn = async (provider, request) => {
   const client = createOpenAICompatible({
     name: provider.id,
@@ -71,7 +85,7 @@ const defaultComplete: CompleteFn = async (provider, request) => {
           role: "user" as const,
           content: [
             { type: "text" as const, text: message.content },
-            ...request.images.map((image) => ({ type: "image" as const, image })),
+            ...request.images.map(imagePart),
           ],
         }
       : message,

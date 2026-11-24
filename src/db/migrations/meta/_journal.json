@@ -15,6 +15,13 @@
       "when": 1795131007637,
       "tag": "0001_overrated_captain_marvel",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1795501855288,
+      "tag": "0002_data_fixes_6a",
+      "breakpoints": true
     }
   ]
 }

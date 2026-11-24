@@ -32,6 +32,16 @@ export const PREFERENCE_SET_BY = ["me", "chat"] as const;
 export const FEEDBACK_VERDICTS = ["up", "down"] as const;
 export const ROOMMATE_STATUSES = ["Messaged", "Call scheduled", "Met"] as const;
 export const CHAT_ROLES = ["user", "assistant", "system", "tool"] as const;
+/** What I decided about a listing on the board. Separate from the landlord pipeline `status`. */
+export const USER_STATUSES = ["none", "shortlisted", "rejected"] as const;
+/** The hard-filter bucket a listing lands in. Same values as the domain `Bucket` type. */
+export const BUCKETS = ["pass", "likely", "needs_info", "fail"] as const;
+/**
+ * Which day the GTFS job counted a stop's rush-hour trips on. "target_date": the chosen weekday
+ * itself. "current_schedule": the agency's published calendar ends before it, so the same
+ * weekday in its last covered week was counted instead (shown as "based on current schedule").
+ */
+export const SCHEDULE_BASES = ["target_date", "current_schedule"] as const;
 /** What a captured post turned out to be. "unknown" until the classifier has run. */
 export const POST_TYPES = [
   "room_offered",
@@ -71,6 +81,11 @@ export const listings = sqliteTable("listings", {
     .notNull()
     .default(sql`'[]'`),
   status: text("status", { enum: LISTING_STATUSES }).notNull().default("New"),
+  /** Short headline for cards: the post title, or the first line of the text. */
+  title: text("title"),
+  userStatus: text("user_status", { enum: USER_STATUSES }).notNull().default("none"),
+  /** Why I shortlisted or rejected it, in my words. */
+  userStatusReason: text("user_status_reason"),
   firstSeen: text("first_seen").notNull(),
   lastChecked: text("last_checked"),
 });
@@ -87,6 +102,8 @@ export const facts = sqliteTable(
     value: text("value", { mode: "json" }),
     provenance: text("provenance", { enum: PROVENANCE }).notNull(),
     sourceUrl: text("source_url"),
+    /** Free-text context for a fact I or a landlord gave, such as "said on the phone". */
+    note: text("note"),
     checkedAt: text("checked_at").notNull(),
   },
   // One row per source of truth, so a landlord's answer never erases what the listing said.
@@ -118,6 +135,10 @@ export const enrichment = sqliteTable("enrichment", {
   allInPlusTransit: integer("all_in_plus_transit"),
   scamChecks: text("scam_checks", { mode: "json" }),
   reviewSummary: text("review_summary", { mode: "json" }),
+  /** Copied from the analysis envelope in cost_breakdown so the board can sort in SQL. */
+  bucket: text("bucket", { enum: BUCKETS }),
+  /** 0 to 100. Null when the listing failed a cheap filter and was never scored. */
+  score: real("score"),
   computedAt: text("computed_at").notNull(),
 });
 
@@ -192,6 +213,37 @@ export const apiCache = sqliteTable(
   (table) => [primaryKey({ columns: [table.provider, table.requestHash] })],
 );
 
+/** Chat history for step 6. Content is the message as JSON (text and tool parts). */
+export const chatMessages = sqliteTable(
+  "chat_messages",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    role: text("role", { enum: CHAT_ROLES }).notNull(),
+    content: text("content", { mode: "json" }).notNull(),
+    createdAt: text("created_at").notNull(),
+  },
+  (table) => [index("chat_messages_created_idx").on(table.createdAt)],
+);
+
+/**
+ * One row per reaction that changed the weights, so a change can be shown and undone. Weights
+ * are full snapshots (factor to weight). The listing is optional: a reaction can be general.
+ */
+export const feedbackEvents = sqliteTable(
+  "feedback_events",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    listingId: integer("listing_id").references(() => listings.id, { onDelete: "set null" }),
+    reason: text("reason").notNull(),
+    weightsBefore: text("weights_before", { mode: "json" }).$type<Record<string, number>>().notNull(),
+    weightsAfter: text("weights_after", { mode: "json" }).$type<Record<string, number>>().notNull(),
+    createdAt: text("created_at").notNull(),
+    /** Set when the event is undone. An undone event no longer counts as the last one. */
+    undoneAt: text("undone_at"),
+  },
+  (table) => [index("feedback_events_created_idx").on(table.createdAt)],
+);
+
 /** Image links only. The server never downloads the images. */
 export const photos = sqliteTable(
   "photos",
@@ -254,6 +306,10 @@ export const transitStops = sqliteTable(
     weekdayRushDepartures: integer("weekday_rush_departures").notNull(),
     /** Null when the stop has too few rush-hour departures to have a headway. */
     medianRushHeadwayMin: integer("median_rush_headway_min"),
+    /** Null for rows written before the job recorded it. */
+    scheduleBasis: text("schedule_basis", { enum: SCHEDULE_BASES }),
+    /** ISO date the trips were actually counted on. Null for rows written before it was recorded. */
+    scheduleDate: text("schedule_date"),
     computedAt: text("computed_at").notNull(),
   },
   (table) => [primaryKey({ columns: [table.feed, table.stopId] })],

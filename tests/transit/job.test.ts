@@ -7,7 +7,7 @@ import { createClient } from "@libsql/client";
 import { drizzle } from "drizzle-orm/libsql";
 import * as schema from "../../src/db/schema";
 import { transitStops } from "../../src/db/schema";
-import { compute } from "../../scripts/gtfs/compute";
+import { agencyServiceDate, compute } from "../../scripts/gtfs/compute";
 import { download, extract } from "../../scripts/gtfs/download";
 import { upsertStops } from "../../scripts/gtfs/store";
 
@@ -129,4 +129,56 @@ it("counts interleaved unsorted untimed stops, including frequency offsets and p
     [1, null],
     [6, 20],
   ]);
+});
+
+it("falls back per agency to the same weekday in its last covered week, and labels those stops", async () => {
+  const dir = await directory();
+  await cp("tests/fixtures/gtfs", dir, { recursive: true });
+  // Agency RAIL runs through January; agency BUS's calendar ends Friday 2027-01-08, before the
+  // Tuesday 2027-01-12 target, the way an unpublished January looks in the real feed.
+  await writeFile(path.join(dir, "agency.txt"), "agency_id,agency_name\nRAIL,Example Rail\nBUS,Example Bus\n");
+  await writeFile(path.join(dir, "routes.txt"), "route_id,route_type,agency_id\nR,2,RAIL\nS,3,BUS\n");
+  await writeFile(
+    path.join(dir, "calendar.txt"),
+    "service_id,monday,tuesday,wednesday,thursday,friday,saturday,sunday,start_date,end_date\n" +
+      "W,1,1,1,1,1,0,0,20261101,20270131\nV,1,1,1,1,1,0,0,20261101,20270108\n",
+  );
+  await writeFile(path.join(dir, "calendar_dates.txt"), "service_id,date,exception_type\n");
+  await writeFile(path.join(dir, "trips.txt"), "route_id,service_id,trip_id\nR,W,T1\nR,W,T2\nS,V,T3\n");
+  const result = await compute(dir, "fixture");
+  expect(result.date).toBe("2027-01-12");
+  expect(result.agencies).toEqual([
+    { agencyId: "BUS", name: "Example Bus", day: "20270105", coverageEnd: "20270108", basis: "current_schedule" },
+    { agencyId: "RAIL", name: "Example Rail", day: "20270112", coverageEnd: "20270131", basis: "service_date" },
+  ]);
+  // Without the fallback, B's bus trip T3 is not counted at all.
+  expect(result.stops.map((s) => [s.stopId, s.weekdayRushDepartures, s.scheduleBasis])).toEqual([
+    ["A", 2, "service_date"],
+    ["B", 3, "current_schedule"],
+  ]);
+});
+
+it("does not fall back when the agency's calendar covers the date", async () => {
+  const dir = await directory();
+  await cp("tests/fixtures/gtfs", dir, { recursive: true });
+  const result = await compute(dir, "fixture");
+  expect(result.agencies.every((a) => a.basis === "service_date" && a.day === "20270112")).toBe(true);
+  expect(result.stops.every((s) => s.scheduleBasis === "service_date")).toBe(true);
+});
+
+it("steps back past a holiday with no service in the agency's last week", () => {
+  const calendars = [
+    { service_id: "V", monday: "1", tuesday: "1", wednesday: "1", thursday: "1", friday: "1", saturday: "0", sunday: "0", start_date: "20261101", end_date: "20270108" },
+  ] as const;
+  const holiday = [{ service_id: "V", date: "20270105", exception_type: "2" }] as const;
+  expect(agencyServiceDate("20270112", new Set(["V"]), [...calendars], [...holiday])).toEqual({
+    day: "20261229",
+    coverageEnd: "20270108",
+    basis: "current_schedule",
+  });
+  expect(agencyServiceDate("20270112", new Set(["V"]), [], [])).toEqual({
+    day: "20270112",
+    coverageEnd: null,
+    basis: "service_date",
+  });
 });

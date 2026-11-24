@@ -82,6 +82,50 @@ export function chooseDate(
   throw new Error("Feed covers neither mid January 2027 nor a future Tuesday; refresh the feed");
 }
 
+/** "service_date": counted on the chosen date. "current_schedule": the agency's calendar ends
+ * before that date, so the same weekday in its last covered week was counted instead. */
+export type ScheduleBasis = "service_date" | "current_schedule";
+export const CURRENT_SCHEDULE_LABEL = "based on current schedule";
+
+export type AgencyDate = {
+  agencyId: string;
+  name: string;
+  /** YYYYMMDD the agency's trips were counted on. */
+  day: string;
+  /** Last YYYYMMDD the agency's calendar covers, or null when it has no calendar rows. */
+  coverageEnd: string | null;
+  basis: ScheduleBasis;
+};
+
+/**
+ * The date to count one agency's trips on. An agency whose calendar ends before the target
+ * (a feed that has not published that period yet) falls back to the same weekday in the last
+ * week it covers, stepping back a week at a time past holidays with no service.
+ */
+export function agencyServiceDate(
+  target: string,
+  serviceIds: ReadonlySet<string>,
+  calendars: Calendar[],
+  exceptions: Exception[],
+): { day: string; coverageEnd: string | null; basis: ScheduleBasis } {
+  const own = calendars.filter((c) => serviceIds.has(c.service_id));
+  const ownExceptions = exceptions.filter((e) => serviceIds.has(e.service_id));
+  const ends = [
+    ...own.map((c) => c.end_date),
+    ...ownExceptions.filter((e) => e.exception_type === "1").map((e) => e.date),
+  ].sort();
+  const end = ends.at(-1) ?? null;
+  if (end === null || end >= target) return { day: target, coverageEnd: end, basis: "service_date" };
+  const cursor = asDate(end);
+  cursor.setUTCDate(cursor.getUTCDate() - ((cursor.getUTCDay() - asDate(target).getUTCDay() + 7) % 7));
+  for (let week = 0; week < 8; week++, cursor.setUTCDate(cursor.getUTCDate() - 7)) {
+    const candidate = compact(cursor);
+    if (activeServices(candidate, own, ownExceptions).size)
+      return { day: candidate, coverageEnd: end, basis: "current_schedule" };
+  }
+  return { day: target, coverageEnd: end, basis: "service_date" };
+}
+
 export type StopResult = {
   feed: string;
   stopId: string;
@@ -92,6 +136,8 @@ export type StopResult = {
   weekdayRushDepartures: number;
   medianRushHeadwayMin: number | null;
   computedAt: string;
+  /** Not stored: transit_stops has no column for it. Printed by the job. */
+  scheduleBasis: ScheduleBasis;
 };
 const timeSchema = z
   .string()
@@ -124,6 +170,7 @@ export async function compute(
   today = new Date(),
 ): Promise<{
   date: string;
+  agencies: AgencyDate[];
   stops: StopResult[];
   missingTimes: number;
   interpolatedTimes: number;
@@ -135,11 +182,21 @@ export async function compute(
   for await (const row of rows(file("calendar"), calendarSchema, true)) calendars.push(row);
   for await (const row of rows(file("calendar_dates"), exceptionSchema, true)) exceptions.push(row);
   const day = chooseDate(calendars, exceptions, today);
-  const services = activeServices(day, calendars, exceptions);
-  const routes = new Map<string, string>();
+  const agencyNames = new Map<string, string>();
+  for await (const a of rows(
+    file("agency"),
+    z.object({ agency_id: z.string().default(""), agency_name: z.string().default("") }),
+    true,
+  ))
+    agencyNames.set(a.agency_id, a.agency_name);
+  const routes = new Map<string, { mode: string; agency: string }>();
   for await (const r of rows(
     file("routes"),
-    z.object({ route_id: id, route_type: z.coerce.number().int().nonnegative() }),
+    z.object({
+      route_id: id,
+      route_type: z.coerce.number().int().nonnegative(),
+      agency_id: z.string().default(""),
+    }),
   )) {
     const type = r.route_type;
     const mode =
@@ -157,15 +214,39 @@ export async function compute(
                 (type >= 700 && type < 900)
               ? "bus"
               : null;
-    if (mode) routes.set(r.route_id, mode);
+    if (mode) routes.set(r.route_id, { mode, agency: r.agency_id });
   }
-  const trips = new Map<string, string>();
+  const allTrips: { tripId: string; mode: string; agency: string; serviceId: string }[] = [];
+  const agencyServiceIds = new Map<string, Set<string>>();
   for await (const t of rows(
     file("trips"),
     z.object({ trip_id: id, route_id: id, service_id: id }),
   )) {
-    const mode = routes.get(t.route_id);
-    if (mode && services.has(t.service_id)) trips.set(t.trip_id, mode);
+    const route = routes.get(t.route_id);
+    if (!route) continue;
+    allTrips.push({ tripId: t.trip_id, mode: route.mode, agency: route.agency, serviceId: t.service_id });
+    const ids = agencyServiceIds.get(route.agency) ?? new Set<string>();
+    ids.add(t.service_id);
+    agencyServiceIds.set(route.agency, ids);
+  }
+  // Each agency is counted on the chosen date, or on its own fallback date (see agencyServiceDate).
+  const agencies: AgencyDate[] = [];
+  const agencyActive = new Map<string, { services: Set<string>; basis: ScheduleBasis }>();
+  for (const [agencyId, ids] of [...agencyServiceIds].sort(([a], [b]) => a.localeCompare(b))) {
+    const chosen = agencyServiceDate(day, ids, calendars, exceptions);
+    agencies.push({ agencyId, name: agencyNames.get(agencyId) || agencyId, ...chosen });
+    agencyActive.set(agencyId, {
+      services: activeServices(chosen.day, calendars, exceptions),
+      basis: chosen.basis,
+    });
+  }
+  const trips = new Map<string, string>();
+  const fallbackTrips = new Set<string>();
+  for (const t of allTrips) {
+    const active = agencyActive.get(t.agency)!;
+    if (!active.services.has(t.serviceId)) continue;
+    trips.set(t.tripId, t.mode);
+    if (active.basis === "current_schedule") fallbackTrips.add(t.tripId);
   }
   const frequencies = new Map<string, { start: number; end: number; gap: number }[]>();
   for await (const f of rows(
@@ -210,6 +291,7 @@ export async function compute(
       times: number[];
       beforeTimes: number[];
       modes: Set<string>;
+      fallback: boolean;
     }
   >();
   for await (const s of rows(
@@ -240,11 +322,13 @@ export async function compute(
         weekdayRushDepartures: 0,
         medianRushHeadwayMin: null,
         computedAt: today.toISOString(),
+        scheduleBasis: "service_date",
       },
       parent: s.parent_station,
       times: [],
       beforeTimes: [],
       modes: new Set(),
+      fallback: false,
     });
   }
   let missingTimes = 0,
@@ -294,7 +378,9 @@ export async function compute(
         continue;
       }
       if (!t.departure_time && !t.arrival_time) interpolatedTimes++;
-      stop.times.push(...expand(departure, base));
+      const counted = expand(departure, base);
+      if (counted.length && fallbackTrips.has(tripId)) stop.fallback = true;
+      stop.times.push(...counted);
     }
   }
   // Station records aggregate their platforms; platform records retain their own service.
@@ -304,11 +390,13 @@ export async function compute(
       if (parent) {
         parent.times.push(...stop.times);
         parent.beforeTimes.push(...stop.beforeTimes);
+        if (stop.fallback) parent.fallback = true;
         for (const mode of stop.modes) parent.modes.add(mode);
       }
     }
   return {
     date: `${day.slice(0, 4)}-${day.slice(4, 6)}-${day.slice(6, 8)}`,
+    agencies,
     missingTimes,
     interpolatedTimes,
     before: [...stops.values()].map((s) => ({
@@ -319,6 +407,7 @@ export async function compute(
     })),
     stops: [...stops.values()].map((s) => ({
       ...s.result,
+      scheduleBasis: s.fallback ? ("current_schedule" as const) : ("service_date" as const),
       modes: [...s.modes].sort(),
       weekdayRushDepartures: s.times.length,
       medianRushHeadwayMin: median(s.times),

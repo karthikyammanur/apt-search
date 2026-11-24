@@ -240,8 +240,15 @@ export type Bucket = "pass" | "fail" | "needs_info" | "likely";
 /** Known monthly costs must be at least this far under the cap for a "likely" listing. */
 export const LIKELY_MARGIN_CENTS = 15000;
 export const LIKELY_REASON = "confirm fees with landlord";
-/** The only cost lines that may be Unknown for a "likely" listing. */
-const LIKELY_UNKNOWN_LINES: readonly CostLineKey[] = ["mandatory_fees", "one_time_fees", "setup_items"];
+/** Shown on a "likely" listing's card while any scam check is still open. */
+export const SCAM_CHECKS_PENDING = "scam checks pending";
+/** Cost lines that may be Unknown for a "likely" listing. */
+const LIKELY_UNKNOWN_LINES: readonly CostLineKey[] = [
+  "mandatory_fees",
+  "one_time_fees",
+  "setup_items",
+  "nonrefundable_deposit",
+];
 
 export type HardFilterReport = {
   bucket: Bucket;
@@ -250,17 +257,45 @@ export type HardFilterReport = {
   questions: Question[];
   /** Set only when the bucket is "likely". */
   likelyReason?: string;
+  /** Set only when the bucket is "likely" and a scam check is still open: "scam checks pending". */
+  scamNote?: string;
 };
 
 /**
- * Known monthly costs (confirmed plus estimated lines) are at least $150 under the cap, and the
- * only Unknown cost lines are mandatory fees, one-time fees or setup items.
+ * The listing states a term that covers my whole stay, so its price is already the price for
+ * that term and no short-term premium applies: it is available by my latest move-in, and it is
+ * a sublet running to move-out or a fixed lease whose length fits the stay. Month-to-month and
+ * longer leases with an exit clause do not count, since either may still carry a premium.
  */
-export function isLikelyOnCost(cost: CostResult, settings: Settings): boolean {
+export function statedTermCoversStay(facts: ListingFacts, settings: Settings): boolean {
+  const start = facts.availableFrom?.value;
+  if (start === undefined || start > settings.moveInLatest) return false;
+  const type = facts.leaseType?.value;
+  if (type === "sublet") {
+    const end = facts.leaseEnd?.value;
+    return end !== undefined && end >= settings.moveOut;
+  }
+  if (type === "fixed") {
+    const lease = analyzeLease(facts, settings, stayPeriod(facts, settings));
+    return lease.status === "pass" && lease.exit === "none_needed";
+  }
+  return false;
+}
+
+/**
+ * Known monthly costs (confirmed plus estimated lines) are at least $150 under the cap, and the
+ * only Unknown cost lines are mandatory fees, one-time fees, setup items, the non-refundable
+ * deposit, or the short-term premium when the stated term covers the stay. An Unknown line adds
+ * nothing to the known floor, so that premium counts as 0 in the margin.
+ */
+export function isLikelyOnCost(cost: CostResult, settings: Settings, facts: ListingFacts): boolean {
+  const premiumAllowed = statedTermCoversStay(facts, settings);
+  const allowed = (key: CostLineKey) =>
+    LIKELY_UNKNOWN_LINES.includes(key) || (key === "short_term_premium" && premiumAllowed);
   const unknownLines = cost.lines.filter((line) => line.status === "unknown");
   return (
     unknownLines.length > 0 &&
-    unknownLines.every((line) => LIKELY_UNKNOWN_LINES.includes(line.key)) &&
+    unknownLines.every((line) => allowed(line.key)) &&
     cost.estimatedFloorCents <= settings.budgetCapCents - LIKELY_MARGIN_CENTS
   );
 }
@@ -288,13 +323,13 @@ export function runHardFilters(
       ? "needs_info"
       : "pass";
   // Likely: the budget is Unknown only because of fees, and every other filter passes. Open scam
-  // checks do not block it, since they stay open until I verify a listing by hand. A failed one
-  // already made the bucket "fail".
+  // checks do not block it, since they stay open until I verify a listing by hand, but the card
+  // shows "scam checks pending". A failed one already made the bucket "fail".
   const budget = results.find((r) => r.filter === "budget");
   if (
     bucket === "needs_info" &&
     budget?.status === "unknown" &&
-    isLikelyOnCost(cost, settings) &&
+    isLikelyOnCost(cost, settings, facts) &&
     results.every((r) => r.filter === "budget" || r.filter === "scam_checks" || r.status === "pass")
   ) {
     bucket = "likely";
@@ -303,7 +338,9 @@ export function runHardFilters(
   const questions = results
     .flatMap((r) => r.questions)
     .filter((q) => (seen.has(q.field) ? false : (seen.add(q.field), true)));
-  return bucket === "likely"
-    ? { bucket, results, questions, likelyReason: LIKELY_REASON }
-    : { bucket, results, questions };
+  if (bucket !== "likely") return { bucket, results, questions };
+  const scamOpen = results.some((r) => r.filter === "scam_checks" && r.status === "unknown");
+  return scamOpen
+    ? { bucket, results, questions, likelyReason: LIKELY_REASON, scamNote: SCAM_CHECKS_PENDING }
+    : { bucket, results, questions, likelyReason: LIKELY_REASON };
 }

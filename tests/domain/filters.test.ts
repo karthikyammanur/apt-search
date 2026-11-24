@@ -10,6 +10,7 @@ import {
   checkTransitAccess,
   computeCost,
   runHardFilters,
+  statedTermCoversStay,
   type ListingFacts,
 } from "@/lib/domain";
 import { bayAreaPack } from "@/lib/regions";
@@ -194,12 +195,61 @@ describe("the likely bucket", () => {
     expect(run({ ...feesUnknown, lacksBasics: null, rentCents: f(200000) }).bucket).toBe("likely");
   });
 
-  it.each([
-    { name: "the non-refundable deposit", over: { nonRefundableDepositCents: null } },
-    { name: "the short-term premium", over: { shortTermPremiumCents: null } },
-    { name: "the rent", over: { rentCents: null } },
-  ])("an Unknown $name keeps it in needs_info", ({ over }) => {
-    expect(run({ ...feesUnknown, rentCents: f(200000), ...over }).bucket).toBe("needs_info");
+  it("an Unknown rent keeps it in needs_info", () => {
+    expect(run({ ...feesUnknown, rentCents: null }).bucket).toBe("needs_info");
+  });
+
+  it("counts the non-refundable deposit as an allowed Unknown line", () => {
+    expect(run({ ...feesUnknown, rentCents: f(200000), nonRefundableDepositCents: null }).bucket).toBe("likely");
+    // Alone, with every fee known.
+    expect(run({ rentCents: f(200000), nonRefundableDepositCents: null }).bucket).toBe("likely");
+  });
+
+  describe("an Unknown short-term premium", () => {
+    const premiumUnknown = { ...feesUnknown, rentCents: f(200000), shortTermPremiumCents: null };
+
+    it.each([
+      { name: "a 7-month fixed lease from Jan 2", over: {} },
+      { name: "an 8-month fixed lease from Jan 8", over: { availableFrom: f("2027-01-08"), leaseMonths: f(8) } },
+      {
+        name: "a sublet from Jan 2 to Aug 31",
+        over: { leaseType: f("sublet" as const), leaseMonths: null, leaseEnd: f("2027-08-31") },
+      },
+      {
+        name: "a sublet from Jan 2 ending on move-out day",
+        over: { leaseType: f("sublet" as const), leaseMonths: null, leaseEnd: f(settings.moveOut) },
+      },
+    ])("counts as 0 when the stated term covers the stay: $name", ({ over }) => {
+      const listing = L({ ...premiumUnknown, ...over });
+      expect(statedTermCoversStay(listing, settings)).toBe(true);
+      expect(run({ ...premiumUnknown, ...over }).bucket).toBe("likely");
+    });
+
+    it("counts as 0 in the $150 margin, not as a default amount", () => {
+      expect(run({ ...premiumUnknown, rentCents: f(CAP - 15000) }).bucket).toBe("likely");
+      expect(run({ ...premiumUnknown, rentCents: f(CAP - 14999) }).bucket).toBe("needs_info");
+    });
+
+    it.each([
+      { name: "a month-to-month lease", over: { leaseType: f("month_to_month" as const), leaseMonths: null } },
+      {
+        name: "a 12-month lease with a break clause",
+        over: { leaseMonths: f(12), exitClause: f("break" as const), breakFeeCents: f(0) },
+      },
+    ])("stays required on $name", ({ over }) => {
+      const listing = L({ ...premiumUnknown, ...over });
+      expect(statedTermCoversStay(listing, settings)).toBe(false);
+      expect(run({ ...premiumUnknown, ...over }).bucket).toBe("needs_info");
+    });
+
+    it.each([
+      { name: "the start date is Unknown", over: { availableFrom: null } },
+      { name: "it starts after my latest move-in", over: { availableFrom: f("2027-01-09") } },
+      { name: "the sublet end is Unknown", over: { leaseType: f("sublet" as const), leaseMonths: null, leaseEnd: null } },
+      { name: "the lease length is Unknown", over: { leaseMonths: null } },
+    ])("is not covered when $name", ({ over }) => {
+      expect(statedTermCoversStay(L({ ...premiumUnknown, ...over }), settings)).toBe(false);
+    });
   });
 
   it("estimated lines count as known costs", () => {
@@ -216,8 +266,16 @@ describe("the likely bucket", () => {
     expect(run({ ...feesUnknown, rentCents: f(200000), commuteMinutes: f(45, "api") }).bucket).toBe("fail");
   });
 
-  it("open scam checks do not block it, a failed one does", () => {
-    expect(run({ ...feesUnknown, rentCents: f(200000), scamChecks: null }).bucket).toBe("likely");
+  it("open scam checks do not block it but are labeled pending, a failed one drops it", () => {
+    const open = run({ ...feesUnknown, rentCents: f(200000), scamChecks: null });
+    expect(open.bucket).toBe("likely");
+    expect(open.scamNote).toBe("scam checks pending");
+    const oneOpen = run({ ...feesUnknown, rentCents: f(200000), scamChecks: f({ ...allScamChecksPass, photos_reused: null }, "me") });
+    expect(oneOpen.bucket).toBe("likely");
+    expect(oneOpen.scamNote).toBe("scam checks pending");
+    const allPass = run({ ...feesUnknown, rentCents: f(200000) });
+    expect(allPass.bucket).toBe("likely");
+    expect(allPass.scamNote).toBeUndefined();
     const failed = { ...allScamChecksPass, untraceable_payment_before_lease: "fail" as const };
     expect(run({ ...feesUnknown, rentCents: f(200000), scamChecks: f(failed, "estimate") }).bucket).toBe("fail");
   });

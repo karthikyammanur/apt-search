@@ -1,7 +1,7 @@
 import path from "node:path";
 import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import { createDb } from "../../src/db";
-import { compute, type StopResult } from "./compute";
+import { CURRENT_SCHEDULE_LABEL, compute, type StopResult } from "./compute";
 import { download, extract, FEEDS } from "./download";
 import { upsertStops } from "./store";
 import { SUMMARY_STATIONS } from "./summary";
@@ -21,6 +21,11 @@ async function main() {
       console.log(
         `${feed}: service date ${result.date}; weekday 07:00 inclusive to 09:00 exclusive; ${result.stops.length} stops`,
       );
+      const iso = (d: string) => `${d.slice(0, 4)}-${d.slice(4, 6)}-${d.slice(6, 8)}`;
+      for (const agency of result.agencies.filter((a) => a.basis === "current_schedule"))
+        console.log(
+          `${feed}: ${agency.name} calendar ends ${iso(agency.coverageEnd!)}, before ${result.date}; counted ${iso(agency.day)} instead (${CURRENT_SCHEDULE_LABEL})`,
+        );
       if (result.missingTimes)
         console.log(
           `${feed}: WARNING ${result.missingTimes} active stop times remain unbounded or invalid and were omitted`,
@@ -41,7 +46,7 @@ async function main() {
           if (station.requiredMode && !stop.modes.includes(station.requiredMode)) continue;
           found.add(station.label);
           console.log(
-            `${station.label}: ${feed}/${stop.stopId} ${stop.name}: before ${before.get(stop.stopId)!.weekdayRushDepartures}, after ${stop.weekdayRushDepartures} rush-hour departures; median gap ${stop.medianRushHeadwayMin === null ? "Unknown" : `${stop.medianRushHeadwayMin} min`}; modes ${stop.modes.join(", ") || "Unknown"}`,
+            `${station.label}: ${feed}/${stop.stopId} ${stop.name}: before ${before.get(stop.stopId)!.weekdayRushDepartures}, after ${stop.weekdayRushDepartures} rush-hour departures; median gap ${stop.medianRushHeadwayMin === null ? "Unknown" : `${stop.medianRushHeadwayMin} min`}; modes ${stop.modes.join(", ") || "Unknown"}${stop.scheduleBasis === "current_schedule" ? ` (${CURRENT_SCHEDULE_LABEL})` : ""}`,
           );
         }
       }

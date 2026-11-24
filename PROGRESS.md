@@ -588,3 +588,77 @@ Each provider answered a one-line probe: Gemini, OpenRouter and Z.ai OK. Groq an
 8. **SUPost prices have no period.** A price on a short sublet may be a total, not a monthly rent. These fail on lease length before the cost matters.
 9. **Schema gap.** `enrichment` has no bucket or score column. A step 1 change would let the board sort in SQL.
 10. 83 of 91 SUPost posts were deferred by the live run's limit of 8; the daily cron processes up to 60 new posts per channel per run.
+
+## 2026-11-24, cleanup after step 5, Claude Code
+
+Follow-up on step 5's open risks. Branch `cleanup-after-step-5`. No status changed in TASKS.md.
+
+### Changed
+- **`src/proxy.ts`**: the login check skips `/api/capture` and `/api/cron/*`, in the matcher and again inside the function. Those routes keep their own checks (X-Capture-Token, Bearer CRON_SECRET). Look-alike paths (`/api/captures`, `/api/cronjob`) are still gated.
+- **`tests/guards/proxy-machine-routes.test.ts`** (new, 6 tests): Next's matcher helper shows both routes skip the gate, the proxy passes them through without a cookie, and both handlers still answer 401 with no or a wrong secret (and with no CRON_SECRET set).
+- **`.env.example`**: blank `CRON_SECRET=` line.
+- **`src/lib/domain/filters.ts`**, `likely` bucket:
+  - Every other filter must pass. Open scam checks are allowed; the report then carries `scamNote: "scam checks pending"` for the card to show.
+  - An Unknown non-refundable deposit is allowed.
+  - An Unknown short-term premium is allowed only when the stated term covers the stay (`statedTermCoversStay`): available by the latest move-in, and a sublet running to move-out or a fixed lease whose length fits. It adds 0 to the known floor. Month-to-month and longer leases with an exit clause still need it.
+- **`scripts/gtfs/compute.ts`**, **`scripts/gtfs/run.ts`**: the service date is chosen per agency (`agencyServiceDate`). An agency whose calendar ends before the target falls back to the same weekday in its last covered week, stepping back past holidays with no service, and its stops are marked `scheduleBasis: "current_schedule"`. The job prints those agencies and adds "based on current schedule" to the summary lines.
+
+### Why the GTFS change
+On 2027-01-12 every Palo Alto Transit Center bus bay showed 0 departures. In the cached 511 feed, VTA (`SC`) service ends 2027-01-10 and SamTrans (`SM`) 2027-01-09, while Caltrain runs to 2027-01-31. The job picked one date for the whole feed (2027-01-12, because Caltrain runs then), so no VTA or SamTrans trip was active. The feed has not published January yet.
+
+### Commands run (with output)
+```
+$ npm run check          (before any change)
+ Test Files  28 passed (28)
+      Tests  533 passed | 1 skipped (534)
+
+$ npm run check          (final)
+ Test Files  29 passed (29)
+      Tests  552 passed | 1 skipped (553)
+```
+Mutation checks (each reverted right after):
+```
+old proxy.ts restored                       Tests  2 failed | 4 passed (6)
+short-term premium rule removed             Tests  5 failed | 72 passed (77)
+non-refundable deposit removed from set     Tests  1 failed | 76 passed (77)
+GTFS fallback disabled                      Tests  2 failed | 21 passed (23)
+```
+GTFS compute on the cached `data/gtfs/511.zip` (extracted to a temp folder, no download, no database write):
+```
+target date 2027-01-12
+agency SC VTA counted 20270105 ends 20270110 current_schedule
+agency SM SamTrans counted 20270105 ends 20270109 current_schedule
+agency CT Caltrain counted 20270112 ends 20270131 service_date
+Palo Alto Transit Center | 60328 Palo Alto Transit Center (Bay 10) | 17 departures | gap 7 | bus | current_schedule
+Palo Alto Transit Center | 347609 Palo Alto Transit Ctr-Bay 9 | 8 | gap 15 | bus | current_schedule
+Palo Alto Transit Center | 347082 Palo Alto Transit Ctr-Bay 1 | 7 | gap 15 | bus | current_schedule
+Palo Alto Transit Center | 70171 / 70172 Palo Alto Caltrain NB / SB | 8 each | gap 15 | rail | service_date
+```
+Other bays now show 3 to 6 departures; bay 60519 still shows 0. BART, Dumbarton Express, Golden Gate and several small agencies also fall back. Karthik will rerun `npm run gtfs` to write the table.
+
+Live SUPost run (`npm run intake:once -- --channel supost --limit 8`, local `data/dev.db`, backed up first; the listings table was empty, so every row used the current private-bedroom pattern):
+```
+== supost ==
+seen 90, new 6, deferred 82 (skipped 2, stored 6)
+#1 room, #2 room, #3 room, #4 studio, #5 studio, #6 room: all-in Unknown, commute Unknown, needs_info (no street address)
+```
+Hand check: rents, types, furnished and sublet types match the post text. #6 "Room with a private bathroom" now has private bath true and private bedroom Unknown, as intended.
+
+Model probe, one structured call each through `src/lib/llm`:
+```
+groq text model=openai/gpt-oss-120b: OK {"ok":true} (871 ms)
+sambanova text model=gpt-oss-120b: FAIL HTTP 402
+sambanova vision model=gemma-4-31B-it: FAIL HTTP 402
+```
+402 is Payment Required: the SambaNova account refuses the call, not the model ID.
+
+### Assumptions
+- "A term that covers Jan to Aug 2027" is read from settings (latest move-in to move-out), not hard-coded dates.
+- No listing card exists yet (step 7), so the label is a report field, `scamNote`.
+
+### Open risks and things for Karthik
+1. **SUPost extraction, for the next step (not fixed here):** #1 "Room in 2B1B Apartment" stored private bedroom true, because "apartment" counts as evidence even on a room post (`src/lib/intake/schema.ts`). Stated date ranges in #1, #3 and #4 were not extracted, so short sublets land in Needs info instead of failing on lease length. #6 "until December" was stored as a fixed lease. The 2 skipped posts were not inspected.
+2. **The "based on current schedule" label is not stored.** `transit_stops` has no column for it (a step 1 schema change). It shows only in the job output.
+3. **SambaNova returns 402.** Check the account or billing; until then the chain falls through to Z.ai.
+4. The AI SDK warns that the `image` content part in `src/lib/llm/client.ts` is deprecated. It still works.
+5. A stop hook run once failed with every test file collecting 0 tests; it passed on rerun. The hook fix is a separate commit on this branch.

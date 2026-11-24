@@ -14,6 +14,8 @@ export default defineConfig({
   testDir: "tests/e2e",
   testMatch: "**/*.spec.ts",
   reporter: [["list"]],
+  // Every spec shares one server and one SQLite file, so they run one at a time.
+  workers: 1,
   use: {
     baseURL: `http://localhost:${PORT}`,
     trace: "retain-on-failure",
@@ -28,6 +30,8 @@ export default defineConfig({
       APP_PASSWORD: E2E_PASSWORD,
       DATABASE_URL: E2E_DATABASE_URL,
       DATABASE_AUTH_TOKEN: "",
+      // Chat uses a scripted model and stubbed map services (src/lib/agent/fake.ts), never live APIs.
+      AGENT_FAKE_MODEL: "1",
     },
   },
 });

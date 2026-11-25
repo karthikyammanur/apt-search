@@ -3,7 +3,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { createDb, type Db } from "@/db";
 import { SOFT_FACTORS } from "@/db/defaults";
-import { DEMO_GROUPS, DEMO_LISTINGS, exampleSettings, seedDemo } from "@/db/demo";
+import { DEMO_GROUPS, DEMO_LISTINGS, databaseProtocol, exampleSettings, seedDemo } from "@/db/demo";
 import { runMigrations } from "@/db/run-migrations";
 import { listings } from "@/db/schema";
 import { applyFeedback, type Weights } from "@/lib/domain";
@@ -59,8 +59,24 @@ describe("demo seed", () => {
     await expect(seedDemo(db, { now: NOW })).rejects.toThrow(/already has listings/);
     const result = await seedDemo(db, { now: NOW, reset: true });
     expect(result.listings).toBe(12);
-    expect(await db.select().from(listings)).toHaveLength(12);
+    const rows = await db.select({ id: listings.id }).from(listings);
+    expect(rows.map((r) => r.id).sort((a, b) => a - b)).toEqual(Array.from({ length: 12 }, (_, i) => i + 1));
   });
+
+  it("treats an in-memory database as local, so the reset above is allowed", () => {
+    expect(databaseProtocol(db)).toBe("file");
+  });
+
+  it.each(["libsql://127.0.0.1:1?tls=0", "https://127.0.0.1:1"])(
+    "refuses to reset a remote database (%s) before sending any query",
+    async (url) => {
+      // Nothing listens on port 1: if the guard ran after a query, the error would be a
+      // connection failure instead of the refusal. No live service is contacted.
+      const remote = createDb(url, "");
+      await expect(seedDemo(remote, { now: NOW, reset: true })).rejects.toThrow(/Refusing to reset a remote database/);
+      (remote as typeof remote & { $client: { close(): void } }).$client.close();
+    },
+  );
 });
 
 describe("getBoard", () => {

@@ -907,3 +907,16 @@ The real capture ran against `data/step7-live.db`, an ignored isolated database 
 ### Open risks
 1. `src/db/demo.ts` and `tests/e2e/screens.spec.ts` belong to steps 6a and 7; edited during the merge with approval.
 2. Step 7's PROGRESS entry still says "in progress, stays Failing" while TASKS marks it Passing.
+
+## 2026-11-24, demo reset refuses remote databases, Claude Code
+
+### Changed
+- `src/db/demo.ts`: `seedDemo(db, { reset: true })` throws before any query unless the open connection's libsql protocol is `file` (a local SQLite file or memory). A `libsql://` or `https://` Turso URL reports `http` and is refused. The check reads the connection, not `DATABASE_URL`, so it also covers a URL passed straight to `createDb`. New helper `databaseProtocol(db)`, because the `Db` type omits drizzle's `$client`.
+- `tests/queries/queries.test.ts`: reset refuses `libsql://127.0.0.1:1?tls=0` and `https://127.0.0.1:1` (nothing listens on port 1, so no live call); in-memory reports `file`; a reset restarts listing ids at 1.
+
+### Commands
+- Guard removed: both remote tests fail with `Failed query: select "id" from "listi…`, so the old code queried the remote database. Guard restored: 28 passed.
+- `npm run check`: 45 files, 729 tests passed. `npm run test:e2e`: 7 passed. `npm run build`: succeeded.
+
+### Open risks
+1. A non-reset seed into an empty remote database is still allowed (it refuses only when listings exist).

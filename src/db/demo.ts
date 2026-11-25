@@ -8,6 +8,7 @@
 
 import { readFileSync } from "node:fs";
 import path from "node:path";
+import type { Client } from "@libsql/client";
 import { getTableName, sql } from "drizzle-orm";
 import { SOFT_FACTORS, STARTING_WEIGHT } from "./defaults";
 import type { Db } from "./index";
@@ -504,13 +505,27 @@ async function clearDemoTables(db: Db): Promise<void> {
 }
 
 /**
+ * The protocol of the open connection: "file" for a local SQLite file or memory, "http" or "ws"
+ * for a remote database such as Turso. drizzle sets `$client`; the `Db` type leaves it out.
+ */
+export function databaseProtocol(db: Db): string {
+  return (db as Db & { $client: Client }).$client.protocol;
+}
+
+/**
  * Write the demo data into a migrated database. Refuses a database that already has listings
  * unless `reset` is set, which first deletes every listing, lead, run, stop, weight and setting.
+ * A reset runs only on a local SQLite file (or memory), never on a remote database such as Turso.
  */
 export async function seedDemo(
   db: Db,
   options: { now?: Date; reset?: boolean; root?: string } = {},
 ): Promise<DemoSeedResult> {
+  // Checked on the open connection, before any query, so it holds whatever URL opened it.
+  const protocol = databaseProtocol(db);
+  if (options.reset && protocol !== "file") {
+    throw new Error(`Refusing to reset a remote database (protocol "${protocol}"). A demo reset runs only on a local file.`);
+  }
   const now = options.now ?? new Date();
   const existing = await db.select({ id: listings.id }).from(listings).limit(1);
   if (existing.length > 0) {

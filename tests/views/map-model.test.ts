@@ -119,10 +119,12 @@ describe("pins and the camera", () => {
 
 describe("the basemap worker", () => {
   it("is served from public/, identical to the installed MapLibre's, so a version change is noticed", () => {
-    const installed = readFileSync(path.join(process.cwd(), "node_modules", "maplibre-gl", "dist", "maplibre-gl-worker.mjs"));
-    const served = readFileSync(path.join(process.cwd(), "public", "maplibre", "maplibre-gl-worker.mjs"));
+    // Line endings are ignored: git may convert them on checkout.
+    const read = (...parts: string[]) => readFileSync(path.join(process.cwd(), ...parts), "utf8").replace(/\r\n/g, "\n");
+    const installed = read("node_modules", "maplibre-gl", "dist", "maplibre-gl-worker.mjs");
+    const served = read("public", "maplibre", "maplibre-gl-worker.mjs");
     // If this fails after upgrading maplibre-gl: cp node_modules/maplibre-gl/dist/maplibre-gl-worker.mjs public/maplibre/
-    expect(served.equals(installed)).toBe(true);
+    expect(served === installed).toBe(true);
   });
 
   it("is the URL the map component sets", () => {

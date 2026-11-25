@@ -18,6 +18,7 @@ Set these in the Vercel project (Settings, Environment Variables), for Productio
 | `TRANSITLAND_API_KEY` | `src/lib/providers/transitland.ts` | Yes, for commute times | Primary transit routing in production. Blank means every transit commute is Unknown. |
 | `GEOAPIFY_API_KEY` | `src/lib/providers/geoapify.ts` | Yes, for addresses and walk and bike times | Primary geocoding, walking and biking in production. Blank means Unknown. |
 | `RENTCAST_API_KEY` | `src/lib/providers/rentcast.ts` | No | The RentCast channel. Blank skips it. |
+| `SUPOST_DETAIL` | `src/lib/providers/supost.ts` | No | Set to `off` to stop fetching each new SUPost post's description and photo links. Blank or any other value leaves it on. |
 | `GMAIL_CLIENT_ID`, `GMAIL_CLIENT_SECRET`, `GMAIL_REFRESH_TOKEN` | `src/lib/providers/gmail.ts` | No | The Gmail alerts channel, read-only. Set all three or none. |
 | `GEMINI_MODEL`, `GEMINI_VISION_MODEL` and the same pairs for `OPENROUTER`, `GROQ`, `SAMBANOVA`, `ZAI` | `src/lib/llm/providers.ts` | No | Model ID overrides. The defaults are in that file. Not listed in `.env.example`. |
 

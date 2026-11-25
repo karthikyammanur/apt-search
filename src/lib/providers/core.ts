@@ -14,6 +14,8 @@ export type Request<T> = {
   init?: RequestInit;
   schema: z.ZodType<T>;
   classify?: (body: unknown, status: number) => ProviderError | undefined;
+  /** For a body that is not plain JSON (a server-sent event): turns the response text into the value to check. */
+  parse?: (text: string) => unknown;
   memoryOnly?: boolean;
   timeoutMs?: number;
   attempts?: 1 | 2;
@@ -150,7 +152,7 @@ export function createCachedFetch(
         }
         let body: unknown;
         try {
-          body = await response.json();
+          body = request.parse ? request.parse(await response.text()) : await response.json();
         } catch {
           request.diagnose?.({
             status: response.status,
@@ -231,6 +233,7 @@ export const TTL = {
   geocode: 30 * 24 * 60 * 60_000,
   pois: 24 * 60 * 60_000,
   listings: 5 * 60_000,
+  listingDetail: 6 * 60 * 60_000,
   gmail: 60_000,
 };
 export function query(base: string, params: Record<string, string | number | boolean>): string {

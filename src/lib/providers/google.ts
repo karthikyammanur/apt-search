@@ -12,6 +12,7 @@ import {
   areaInput,
   duration,
   minutes,
+  ROUTE_CHOICE_WINDOW_MINUTES,
   routeInput,
   type Coordinates,
   type Mode,
@@ -119,9 +120,7 @@ export function createGoogle(options: ClientOptions = {}) {
           TTL.route,
         ),
         (data): Route | undefined => {
-          const route = data.routes?.[0];
-          if (!route) return undefined;
-          return {
+          const toRoute = (route: NonNullable<typeof data.routes>[number]): Route => ({
             minutes: minutes(parseFloat(route.duration)),
             steps: route.legs.flatMap((leg) =>
               leg.steps.map((step) => {
@@ -143,7 +142,12 @@ export function createGoogle(options: ClientOptions = {}) {
                 };
               }),
             ),
-          };
+          });
+          // The first route is the one Google recommends. Any others within a few minutes of it ride along.
+          const [first, ...rest] = (data.routes ?? []).map(toRoute);
+          if (!first) return undefined;
+          const near = rest.filter((r) => Math.abs(r.minutes - first.minutes) <= ROUTE_CHOICE_WINDOW_MINUTES);
+          return near.length > 0 ? { ...first, alternatives: near } : first;
         },
       );
     },

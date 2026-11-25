@@ -21,7 +21,8 @@ export async function POST() {
     return Response.json({ error: "Not signed in" }, { status: 401 });
   }
   const db = getDb();
-  await seedDemo(db, { reset: true });
+  // The e2e database is thrown away and recreated for every run. A listing the chat spec pasted into it is a test's.
+  await seedDemo(db, { reset: true, discardTestListings: true });
   const [pass] = (await getBoard({ bucket: "pass" }, { db })).items;
   return Response.json({ passListingId: pass?.id ?? null });
 }

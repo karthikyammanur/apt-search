@@ -181,6 +181,8 @@ const DATE_TOKEN = new RegExp(
 );
 const RANGE_JOIN = /^\s*(?:-|to|until|till|thru|through)\s*$/i;
 const OPEN_END = /\b(?:until|till|thru|through)\s*$/i;
+/** Words that say a date is when the place becomes available: "starting from Feb", "available Jan 5". */
+const START_WORD = /\b(?:start(?:s|ing)?|available|avail?aible|beginning|begins|move[- ]?in(?:\s+date)?|from)(?:\s+(?:from|on|in))?\s*:?\s*$/i;
 /** "Dec 15-22": a day after a dash, ending a range in the start's month. */
 const DAY_ONLY_END = /^\s*-\s*(\d{1,2})(?:st|nd|rd|th)?\b(?!\s*[/:])/;
 
@@ -255,6 +257,9 @@ export function statedDates(text: string, reference: string): StatedDates {
       const endIso = isoOf(endYear, endMonth, endDay);
       if (endIso && endIso > startIso) return { availableFrom: startIso, leaseEnd: endIso, openEnded: false };
     }
+    // "starting from Feb or March": a start with no end. Several months are read as the earliest,
+    // so the date can only be too early, never later than the post allows.
+    if (startIso && START_WORD.test(clean.slice(0, from.start))) return { availableFrom: startIso, leaseEnd: null, openEnded: false };
     if (OPEN_END.test(clean.slice(0, from.start))) {
       const endIso = isoOf(startYear, from.month, from.day ?? lastDayOf(startYear, from.month));
       if (endIso) return { availableFrom: null, leaseEnd: endIso, openEnded: true };

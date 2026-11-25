@@ -3,7 +3,8 @@
 
 import { and, asc, desc, eq, inArray, sql, type SQL } from "drizzle-orm";
 import { BUCKETS, enrichment, listings, photos, USER_STATUSES } from "@/db/schema";
-import type { Bucket, ExplainItem } from "@/lib/domain";
+import { getSettings as readSettings } from "@/db/settings";
+import { overBudgetCents, type Bucket, type ExplainItem, type FilterId } from "@/lib/domain";
 import { readAnalysis } from "@/lib/intake/analysis";
 import { currentValue, dbOf, factRowsFor, type QueryOptions } from "./shared";
 
@@ -44,8 +45,14 @@ export type BoardItem = {
   likelyReason: string | null;
   /** "scam checks pending" on a likely listing with open checks. */
   scamNote: string | null;
-  /** Reason of the first failed filter, for the hidden-fails summary. */
+  /** Reason of the first failed filter. */
   failReason: string | null;
+  /** Every failed filter, in the order the filters run. Empty unless the listing fails. */
+  failedFilters: FilterId[];
+  /** How far over the cap the monthly cost is, when the budget filter failed. */
+  overBudgetCents: number | null;
+  /** True when the listing has no street address and its point is a guess from a place name. */
+  approximateLocation: boolean;
   openQuestions: number;
   userStatus: UserStatus;
   userStatusReason: string | null;
@@ -84,6 +91,7 @@ export async function getBoard(filter: BoardFilter = {}, options?: QueryOptions)
     else counts.unanalyzed += Number(row.n);
   }
 
+  const cap = await readSettings(db).then((s) => s.budgetCapCents, () => null);
   const ids = rows.map((row) => row.listing.id);
   const factsBy = await factRowsFor(db, ids);
   const photoRows = ids.length
@@ -96,7 +104,9 @@ export async function getBoard(filter: BoardFilter = {}, options?: QueryOptions)
     const analysis = readAnalysis(e?.costBreakdown);
     const listingFacts = factsBy.get(listing.id);
     const listingPhotos = photosBy.get(listing.id) ?? [];
-    const failed = analysis?.filters.results.find((r) => r.status === "fail");
+    const failedResults = analysis?.filters.results.filter((r) => r.status === "fail") ?? [];
+    const failed = failedResults[0];
+    const failedBudget = failedResults.some((r) => r.filter === "budget");
     return {
       id: listing.id,
       title: listing.title,
@@ -124,6 +134,9 @@ export async function getBoard(filter: BoardFilter = {}, options?: QueryOptions)
       likelyReason: analysis?.filters.likelyReason ?? null,
       scamNote: analysis?.filters.scamNote ?? null,
       failReason: failed?.reason ?? null,
+      failedFilters: failedResults.map((r) => r.filter),
+      overBudgetCents: failedBudget && analysis && cap !== null ? overBudgetCents(analysis.cost, cap) : null,
+      approximateLocation: currentValue<boolean>(listingFacts, "locationApproximate") === true,
       openQuestions: analysis?.filters.questions.length ?? 0,
       userStatus: listing.userStatus,
       userStatusReason: listing.userStatusReason,

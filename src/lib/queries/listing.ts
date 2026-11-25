@@ -108,7 +108,8 @@ export type ListingDetail = {
     rushHeadwayMinutes: number | null;
     stops: NearbyStopDetail[];
   };
-  places: { grocery: Poi | null; gym: Poi | null; cafes: Poi[] } | null;
+  /** `notChecked` lists the kinds (grocery_store, gym, cafe) the place source could not vouch for. */
+  places: { grocery: Poi | null; gym: Poi | null; cafes: Poi[]; notChecked: string[] } | null;
   trust: TrustCheck[];
   photos: { url: string; position: number; source: string }[];
   /** Every place this listing was seen. */
@@ -167,7 +168,7 @@ export async function getListing(id: number, options?: QueryOptions): Promise<Li
     value("nearbyStops"),
   );
   const schedule = await scheduleByName(db, stopsFact.flatMap((s) => (s.name ? [s.name] : [])));
-  const pois = e?.pois as { grocery?: Poi | null; gym?: Poi | null; cafes?: Poi[] } | null | undefined;
+  const pois = e?.pois as { grocery?: Poi | null; gym?: Poi | null; cafes?: Poi[]; notChecked?: string[] } | null | undefined;
   const photoRows = await db.select().from(photos).where(eq(photos.listingId, id)).orderBy(asc(photos.position));
   const people = await db.select().from(roommates).where(eq(roommates.listingId, id));
   const primary: SourceLink[] = listing.url && !listing.sourceLinks.some((l) => l.url === listing.url)
@@ -238,7 +239,9 @@ export async function getListing(id: number, options?: QueryOptions): Promise<Li
         scheduleDate: (stop.name && schedule.get(stop.name)?.date) || null,
       })),
     },
-    places: pois ? { grocery: pois.grocery ?? null, gym: pois.gym ?? null, cafes: pois.cafes ?? [] } : null,
+    places: pois
+      ? { grocery: pois.grocery ?? null, gym: pois.gym ?? null, cafes: pois.cafes ?? [], notChecked: pois.notChecked ?? [] }
+      : null,
     trust: trustChecks(value<ScamChecks>("scamChecks"), e?.scamChecks ?? null),
     photos: photoRows.map((p) => ({ url: p.url, position: p.position, source: p.source })),
     sources: [...primary, ...listing.sourceLinks],

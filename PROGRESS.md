@@ -990,3 +990,39 @@ The earlier "Caltrain zone priced 0 of 6" was too loose (it counted VTA routes),
 2. Overpass fails often (4 of 6 here); the Geoapify fallback has no gyms, so a gym count reads 0 rather than Unknown.
 3. 4 of 6 free-provider commutes fall in the 25 to 35 min margin and show Unknown on the commute filter.
 4. Transitland can choose a different route than Google, which moves the pass price.
+
+## 2026-11-24, fix round 2 (branch fix-round-2), Claude Code
+
+No TASKS.md status changed. Work was done on the user's explicit request; nothing was pushed or deployed. No `.env*` or `config/*.local.json` file was read. Personal figures (budget, office) are not recorded here.
+
+### Changed
+1. Settings source: the demo seed was ruled out (it only reads the example settings). The stored dates came from the settings table itself (`db:seed --overwrite` or the Settings form). `seedDemo` now refuses any database holding a listing that is not a demo listing (even with reset), and never replaces an existing setting. `discardTestListings` exists only for the e2e server's throwaway database. Test: `tests/db/demo-seed-safety.test.ts`.
+2. Region packs: names match case-insensitively with aliases (Palo Alto, Stanford, EVGR, Menlo Park, Mountain View and so on). `src/lib/regions/index.ts`, `tests/domain/regions.test.ts`.
+3. "starting from Feb or March" is an available-from date and fails move-in (`START_WORD` in `src/lib/intake/schema.ts`). Fixture `supost-run-2026-11-24.json` post 2.
+4. Photos: the SUPost list API returns no description and no photos, so none were ever stored. Each new post now makes one call to SUPost's own agent server (`SUPOST_MCP_URL`, through the cached client) for both. Existing listings stay without photos until they are seen again. The browser loads images itself with `referrerPolicy="no-referrer"`; the server never fetches an image.
+5. Listing page: Unknown summary parts hidden, Unknown costs grouped on one line, Fails show the reason first with no score or draft, whole dollars, "Jan 2 to Aug 13", draft of at most 4 questions about what is Unknown and matters (`src/lib/domain/draft.ts`), Google Lens line only with photos.
+6. Map: tiles failed because MapLibre 6 finds its worker next to the module that loaded it, and Next bundles that module into a hashed chunk. The worker is now served from `public/maplibre/` and set with `setWorkerUrl`; a test keeps the copy equal to the installed one. Each Caltrain station shows once inside the search area as a dot with its name; office marker; the view fits the office and pins, or the search area; approximate pins are hollow. `src/lib/queries/map-model.ts`.
+7. Board text: same date and money formats; hidden fails are summarised by reason.
+8. Near misses: budget-only fails within $150 over the cap are grouped as "Just over budget", nearest first, "$80 over" on the row (`src/lib/domain/fails.ts`).
+9. Approximate location: a neighbourhood, cross streets, a station or a city is geocoded to a point with provenance estimate (`locationApproximate`), labelled everywhere. A commute of 20 min or less passes from such a point; longer is Unknown, "approximate location, confirm the address". `src/lib/intake/approximate.ts`.
+10. `npm run recheck -- --db <file>`: reads each stored post again from its saved text, replaces the facts the post states (provenance listing; a channel's own price is kept), keeps map and landlord facts, then redoes cost, filters and score. Fetches nothing new. One transaction per listing. `src/lib/intake/recheck.ts`.
+11. Places: a kind the free source found none of is "not checked" (Unknown), never 0 or "none". Geoapify is asked once per kind (one mixed request let cafes crowd out gyms). Gyms: Overpass also matches `amenity=gym` and fitness sports centres. Grocery is supermarkets and grocery stores only, for Overpass, Geoapify and Google (convenience stores and gas stations lose the kind). `src/lib/intake/geo.ts`.
+12. Route choice: Transitland asks for 3 itineraries and Google's extra routes are kept; among those within 5 min of the fastest, the one with the cheapest pass is used for both commute and pass cost. The commuteRoute fact carries a note saying so, shown on the listing page. `chooseRoute` in `src/lib/intake/enrich.ts`.
+13. A post is saved last and all at once: everything that needs the network is fetched first (`planEnrich`), then the listing, facts, photos, enrichment and analysis are written in one transaction (`inTransaction`). A post cut off at the time limit has written nothing and is retried, not "already seen". Merges are one transaction too. `tests/intake/store-atomic.test.ts`.
+14. `.claude/stop-hook.log` removed from git and listed in `.gitignore`.
+
+### Commands run
+- `npm run check`: tsc and eslint clean (0 warnings); `Test Files 64 passed (64)`, `Tests 987 passed (987)`.
+- `npm run build`: compiled, TypeScript finished, 13 routes listed.
+- `npm run test:e2e`: `7 passed (41.9s)`.
+- `npm run recheck -- --db data/recheck-copy.db` on a copy of `data/dev.db` with the copy's settings changed: all 6 SUPost listings rechecked, all fail (reasons in the report to the user).
+
+### Assumptions
+- Geoapify's `sport.fitness` category was checked live and finds gyms; the earlier "0 gyms" came from the mixed request.
+- Google's `computeRoutes` is not asked for alternatives (its transit support is not documented); extra routes are used when it returns them.
+
+### Open risks
+1. SUPost's agent server is a second endpoint (rule 4 allows SUPost's API; this is SUPost's own documented agent interface). If it changes, new posts are still stored, without a description or photos.
+2. The recheck does not geocode, so a listing with only an approximate place gets no commute until it is seen again by intake.
+3. A transaction waits on nothing remote, but a cut-off post may still finish in the background after the run gives up; it then commits whole.
+4. Old listings keep their previous photos state (none).

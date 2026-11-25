@@ -37,6 +37,11 @@ export type RawListing = {
   /** Screenshots from the chat, as data: URLs or bytes. Never remote URLs. */
   images?: LlmImage[];
   prefill?: Prefill;
+  /**
+   * Fetches what the channel's list call left out (the description and photo links), called by the
+   * pipeline only for a post that is not already saved. Null when there is nothing more.
+   */
+  detail?: () => Promise<{ description: string; photoUrls: string[] } | null>;
   /** Structured API data only: skip the model. */
   skipModel?: boolean;
   /** Free-form channel metadata, such as the sender of an email. Kept for debugging, never trusted. */

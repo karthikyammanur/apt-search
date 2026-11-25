@@ -11,8 +11,8 @@ import type { Db } from "@/db";
 import { nearestStops } from "@/lib/transit";
 import { routedByNote, type ListingFactValues } from "@/lib/domain";
 import type { Route, StopPoint } from "@/lib/providers";
-import { caltrainZone } from "@/lib/regions";
-import type { Geo, Place } from "./geo";
+import { caltrainZone, type RegionPack } from "@/lib/regions";
+import type { Geo, Place, PlaceKind } from "./geo";
 import type { FactWrite } from "./facts";
 
 export const WALK_METERS_PER_MINUTE = 80;
@@ -137,6 +137,44 @@ export function routeToLegs(route: Route, stops: readonly StopRow[] = []): Listi
   return { legs };
 }
 
+export type RouteChoice = {
+  route: Route;
+  /** Set when a slower route was taken for its cheaper pass: what was chosen and what it saved. */
+  note: string | null;
+};
+
+/**
+ * Among the fastest itinerary and the ones within five minutes of it, take the one whose monthly pass is
+ * cheapest. A route whose pass cannot be priced never beats one that can. Ties go to the faster route, so
+ * with no region pack, or no alternatives, the answer is the fastest. The commute minutes and the pass cost
+ * both come from the route returned, so the page can say which route they are based on.
+ */
+export function chooseRoute(
+  route: Route,
+  region: Pick<RegionPack, "cheapestPass"> | undefined,
+  stops: readonly StopRow[] = [],
+): RouteChoice {
+  const alternatives = route.alternatives ?? [];
+  if (!region || alternatives.length === 0) return { route, note: null };
+  const priced = [route, ...alternatives].map((candidate) => {
+    const pass = region.cheapestPass(routeToLegs(candidate, stops));
+    return { candidate, cents: pass.status === "estimate" ? pass.monthlyCents : null };
+  });
+  let best = priced[0]!;
+  for (const entry of priced.slice(1)) {
+    if (entry.cents === null) continue;
+    if (best.cents === null || entry.cents < best.cents) best = entry;
+  }
+  if (best.candidate === route) return { route, note: null };
+  const chosen: Route = { minutes: best.candidate.minutes, steps: best.candidate.steps };
+  const saved = best.cents !== null && priced[0]!.cents !== null ? priced[0]!.cents - best.cents : null;
+  const slower = best.candidate.minutes - route.minutes;
+  return {
+    route: chosen,
+    note: `Chosen for the cheaper pass${saved !== null ? `, $${Math.round(saved / 100)} a month less` : ""}; ${slower} min slower than the fastest route`,
+  };
+}
+
 /** "123 Main St, Palo Alto, CA 94301, USA" gives "Palo Alto". Null when it cannot tell. */
 export function cityFromFormatted(formatted: string): string | null {
   const match = /,\s*([^,]+),\s*CA\b/.exec(formatted);
@@ -166,6 +204,8 @@ export type EnrichInput = {
   office: { lat: number; lng: number };
   startDate: string;
   stops: StopRow[];
+  /** When given, the route with the cheapest pass is preferred among those within five minutes of the fastest. */
+  region?: Pick<RegionPack, "cheapestPass">;
 };
 
 export type EnrichResult = {
@@ -178,7 +218,7 @@ export type EnrichResult = {
     nearestStop: string | null;
     stopWalkMin: number | null;
     rushHeadwayMin: number | null;
-    pois: { grocery: PoiResult | null; gym: PoiResult | null; cafes: PoiResult[] } | null;
+    pois: { grocery: PoiResult | null; gym: PoiResult | null; cafes: PoiResult[]; notChecked: PlaceKind[] } | null;
   };
   notes: string[];
 };
@@ -215,10 +255,11 @@ export async function enrichListing(geo: Geo, input: EnrichInput): Promise<Enric
   const arriveBy = arriveBy830(firstWeekdayOnOrAfter(input.startDate));
   const transit = await geo.transit(here, input.office, arriveBy);
   if (transit.ok) {
-    columns.commuteTransitMin = transit.data.minutes;
-    columns.routeSteps = transit.data.steps;
-    facts.push({ field: "commuteMinutes", value: transit.data.minutes, provenance: "api", note: routedByNote(transit.data.provider) });
-    facts.push({ field: "commuteRoute", value: routeToLegs(transit.data, input.stops), provenance: "api" });
+    const choice = chooseRoute(transit.data, input.region, input.stops);
+    columns.commuteTransitMin = choice.route.minutes;
+    columns.routeSteps = choice.route.steps;
+    facts.push({ field: "commuteMinutes", value: choice.route.minutes, provenance: "api", note: routedByNote(transit.data.provider) });
+    facts.push({ field: "commuteRoute", value: routeToLegs(choice.route, input.stops), provenance: "api", note: choice.note });
   } else {
     notes.push(`transit commute: ${transit.error}`);
   }
@@ -289,15 +330,20 @@ export async function enrichListing(geo: Geo, input: EnrichInput): Promise<Enric
           : { name: cafe.name, walkMinutes: estimateWalkMinutes(cafe.meters), provenance: "estimate" },
       );
     }
-    columns.pois = { grocery: groceryPoi, gym: gymPoi, cafes: cafePois };
+    // A free source that found none of a kind cannot say there is none: that kind is "not checked", never 0.
+    const notChecked = (found.data.notChecked ?? []).filter((kind) => !found.data.some((p) => p.types.includes(kind)));
+    columns.pois = { grocery: groceryPoi, gym: gymPoi, cafes: cafePois, notChecked };
     if (groceryPoi) facts.push({ field: "groceryWalkMinutes", value: groceryPoi.walkMinutes, provenance: groceryPoi.provenance });
     if (gymPoi) facts.push({ field: "gymWalkMinutes", value: gymPoi.walkMinutes, provenance: gymPoi.provenance });
     // An empty list means none were found, which is a result of its own, but only an estimate.
-    facts.push({
-      field: "cafeWalkMinutes",
-      value: cafePois.map((c) => c.walkMinutes),
-      provenance: cafePois.length === 1 && cafePois[0]?.provenance === "api" ? "api" : "estimate",
-    });
+    // It is written only when the source could have found cafes at all.
+    if (!notChecked.includes("cafe")) {
+      facts.push({
+        field: "cafeWalkMinutes",
+        value: cafePois.map((c) => c.walkMinutes),
+        provenance: cafePois.length === 1 && cafePois[0]?.provenance === "api" ? "api" : "estimate",
+      });
+    }
   }
   return { facts, columns, notes };
 }

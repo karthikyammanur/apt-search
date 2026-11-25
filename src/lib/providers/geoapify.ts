@@ -38,6 +38,15 @@ export const geoapifyPlacesSchema = z.object({
 export type GeoapifyPlace = { id: string; name: string | null; lat: number; lng: number; categories: string[] };
 /** Supermarkets, fitness centres and cafes: the three place kinds the app looks for. */
 export const GEOAPIFY_PLACE_CATEGORIES = "commercial.supermarket,sport.fitness,catering.cafe";
+/**
+ * One request per kind. In a single mixed request the nearest 60 places are mostly cafes and shops, which
+ * crowds the gyms out. "sport.fitness" is Geoapify's category for gyms and fitness centres.
+ */
+export const GEOAPIFY_KIND_CATEGORIES = {
+  grocery_store: "commercial.supermarket",
+  gym: "sport.fitness",
+  cafe: "catering.cafe",
+} as const;
 
 export function createGeoapify(options: ClientOptions = {}) {
   const transport = options.transport ?? cachedFetch;
@@ -67,7 +76,7 @@ export function createGeoapify(options: ClientOptions = {}) {
         },
       );
     },
-    places(center: Coordinates, radiusMeters = 1500) {
+    places(center: Coordinates, radiusMeters = 1500, categories: string = GEOAPIFY_PLACE_CATEGORIES) {
       if (!key()) return Promise.resolve(failure("disabled"));
       if (!areaInput.safeParse({ center, radiusMeters }).success) return Promise.resolve(failure("bad_response"));
       return mapped(
@@ -75,7 +84,7 @@ export function createGeoapify(options: ClientOptions = {}) {
           "geoapify",
           {
             url: query("https://api.geoapify.com/v2/places", {
-              categories: GEOAPIFY_PLACE_CATEGORIES,
+              categories,
               filter: `circle:${center.lng},${center.lat},${radiusMeters}`,
               bias: `proximity:${center.lng},${center.lat}`,
               limit: 60,

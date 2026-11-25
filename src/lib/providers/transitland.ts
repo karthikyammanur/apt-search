@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { cachedFetch, failure, mapped, query, TTL, type ClientOptions } from "./core";
-import { minutes, routeInput, seconds, type Coordinates, type Route, type StopPoint } from "./types";
+import { minutes, ROUTE_CHOICE_WINDOW_MINUTES, routeInput, seconds, type Coordinates, type Route, type StopPoint } from "./types";
 
 const place = z
   .object({
@@ -74,7 +74,7 @@ export function createTransitland(options: ClientOptions = {}) {
               arriveBy: true,
               date: `${parts.year}-${parts.month}-${parts.day}`,
               time: `${parts.hour}:${parts.minute}`,
-              maxItineraries: 1,
+              maxItineraries: 3,
               useFallbackDates: false,
             }),
             init: { headers: { apikey: key } },
@@ -83,27 +83,30 @@ export function createTransitland(options: ClientOptions = {}) {
           TTL.route,
         ),
         (data): Route | undefined => {
-          // The planner returns a walk-only itinerary beside the transit one, and not always in the
-          // same order. The commute is the quickest way without a car, so take the shortest.
-          const itinerary = data.plan.itineraries.reduce<(typeof data.plan.itineraries)[number] | undefined>(
-            (best, candidate) => (best === undefined || candidate.duration < best.duration ? candidate : best),
-            undefined,
-          );
-          return (
-            itinerary && {
-              minutes: minutes(itinerary.duration),
-              steps: itinerary.legs.map((leg) => ({
-                mode: stepMode(leg.mode),
-                minutes: minutes(leg.duration),
-                lineName: leg.routeShortName ?? leg.routeLongName ?? null,
-                agencyName: nonEmpty(leg.agencyName),
-                departureStop: nonEmpty(leg.from?.name),
-                arrivalStop: nonEmpty(leg.to?.name),
-                departurePoint: stopPoint(leg.from),
-                arrivalPoint: stopPoint(leg.to),
-              })),
-            }
-          );
+          // The planner returns a walk-only itinerary beside the transit ones, and not always in the
+          // same order. The commute is the quickest way without a car, so the shortest comes first, and
+          // the others within a few minutes of it ride along so the caller can prefer a cheaper pass.
+          const routes = data.plan.itineraries
+            .map(
+              (itinerary): Route => ({
+                minutes: minutes(itinerary.duration),
+                steps: itinerary.legs.map((leg) => ({
+                  mode: stepMode(leg.mode),
+                  minutes: minutes(leg.duration),
+                  lineName: leg.routeShortName ?? leg.routeLongName ?? null,
+                  agencyName: nonEmpty(leg.agencyName),
+                  departureStop: nonEmpty(leg.from?.name),
+                  arrivalStop: nonEmpty(leg.to?.name),
+                  departurePoint: stopPoint(leg.from),
+                  arrivalPoint: stopPoint(leg.to),
+                })),
+              }),
+            )
+            .sort((a, b) => a.minutes - b.minutes);
+          const [fastest, ...others] = routes;
+          if (!fastest) return undefined;
+          const near = others.filter((r) => r.minutes - fastest.minutes <= ROUTE_CHOICE_WINDOW_MINUTES);
+          return near.length > 0 ? { ...fastest, alternatives: near } : fastest;
         },
       );
     },

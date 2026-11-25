@@ -25,6 +25,7 @@ Next.js (App Router) + TypeScript strict, Vercel AI SDK (OpenAI-compatible provi
 - `npm run check`: typecheck + lint + unit and guard tests. Must pass before every commit
 - `npm run test:e2e`: Playwright
 - `npm run smoke`: one live call per external API (uses real free quota, run sparingly)
+- `npm run recheck -- --db <file>`: read every stored listing again from its saved text and redo cost, filters and score. Fetches nothing new (one model call per text post). Try it on a copy of the database first
 - `npm run db:migrate`, `npm run db:seed`
 
 ## Golden rules (enforced by tests in `tests/guards/`)

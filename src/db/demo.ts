@@ -471,6 +471,10 @@ const DEMO_RUNS: DemoRun[] = [
   { channel: "facebook_capture", groupName: DEMO_GROUPS[1], ageHours: 3, seen: 9, fresh: 1 },
 ];
 
+/** Every demo listing has a URL under this prefix, which is how a real listing is told apart from one. */
+export const DEMO_URL_PREFIX = "https://example.com/demo-listings/";
+export const isDemoUrl = (url: string | null): boolean => url !== null && url.startsWith(DEMO_URL_PREFIX);
+
 export const EXAMPLE_SETTINGS_PATH = path.join("config", "settings.example.json");
 
 /** The example settings only. The demo never reads the private settings file. */
@@ -520,7 +524,16 @@ export function databaseProtocol(db: Db): string {
  */
 export async function seedDemo(
   db: Db,
-  options: { now?: Date; reset?: boolean; root?: string } = {},
+  options: {
+    now?: Date;
+    reset?: boolean;
+    root?: string;
+    /**
+     * For a throwaway test database only (the e2e server's, which its route checks): listings that are not the
+     * demo's own were added by a test, so a reset may replace them. Never set for a database someone uses.
+     */
+    discardTestListings?: boolean;
+  } = {},
 ): Promise<DemoSeedResult> {
   // Checked on the open connection, before any query, so it holds whatever URL opened it.
   const protocol = databaseProtocol(db);
@@ -528,16 +541,22 @@ export async function seedDemo(
     throw new Error(`Refusing to seed demo data into a remote database (protocol "${protocol}"). The demo seed runs only on a local file.`);
   }
   const now = options.now ?? new Date();
-  const existing = await db.select({ id: listings.id }).from(listings).limit(1);
-  if (existing.length > 0) {
-    if (!options.reset) throw new Error("The database already has listings. Use an empty database, or pass --reset to replace everything.");
+  const existing = await db.select({ id: listings.id, url: listings.url }).from(listings);
+  // A listing that is not one of the demo's own is real. Nothing is written beside real listings:
+  // not settings, not weights, and not even with reset (which would delete them).
+  if (!options.discardTestListings && existing.some((row) => !isDemoUrl(row.url))) {
+    throw new Error("Refusing to seed demo data: this database has real listings. The demo seed never writes settings, weights or listings next to them.");
+  }
+  if (existing.length > 0 && !options.reset) {
+    throw new Error("The database already has listings. Use an empty database, or pass --reset to replace everything.");
   }
   if (options.reset) await clearDemoTables(db);
 
   const settings = exampleSettings(options.root);
   const stamp = now.toISOString();
   for (const [key, value] of Object.entries(settings)) {
-    await db.insert(settingsTable).values({ key, value, updatedAt: stamp }).onConflictDoUpdate({ target: settingsTable.key, set: { value, updatedAt: stamp } });
+    // Never replaces a setting that is already there: after a reset the table is empty anyway.
+    await db.insert(settingsTable).values({ key, value, updatedAt: stamp }).onConflictDoNothing();
   }
   for (const factor of SOFT_FACTORS) {
     await db.insert(preferences).values({ key: factor, kind: "soft", value: null, weight: STARTING_WEIGHT, setBy: null }).onConflictDoNothing();
@@ -564,7 +583,7 @@ export async function seedDemo(
   const buckets: Record<Bucket, number> = { pass: 0, likely: 0, needs_info: 0, fail: 0 };
   for (const [index, demo] of DEMO_LISTINGS.entries()) {
     const firstSeen = hoursBefore(now, demo.ageHours);
-    const url = `https://example.com/demo-listings/${index + 1}`;
+    const url = `${DEMO_URL_PREFIX}${index + 1}`;
     const [row] = await db
       .insert(listings)
       .values({

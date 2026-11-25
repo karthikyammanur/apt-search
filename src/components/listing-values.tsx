@@ -1,15 +1,10 @@
 import Link from "next/link";
+import { fmtDollars, overLabel, tidyText } from "@/lib/domain";
 import type { BoardItem, ListingDetail } from "@/lib/queries";
 import { Photo } from "./photos";
 
-export const money = (cents: number | null | undefined) =>
-  cents == null
-    ? "Unknown"
-    : new Intl.NumberFormat("en-US", {
-        style: "currency",
-        currency: "USD",
-        maximumFractionDigits: 2,
-      }).format(cents / 100);
+/** Whole dollars, no cents: "$1,651". Null is "Unknown". */
+export const money = (cents: number | null | undefined) => fmtDollars(cents);
 export const minutes = (value: number | null | undefined) =>
   value == null ? "Unknown" : `${value} min`;
 export const FILTER_LABELS = {
@@ -33,6 +28,7 @@ export function ProvenanceChip({ source }: { source: string | null }) {
   );
 }
 export function ListingCard({ item }: { item: BoardItem }) {
+  const fails = item.bucket === "fail";
   return (
     <li className="border-b border-line">
       <div className="flex items-center gap-4 py-[18px]">
@@ -43,16 +39,25 @@ export function ListingCard({ item }: { item: BoardItem }) {
         >
           <span className="font-medium break-words">{item.title ?? "Untitled listing"}</span>
           <span className="mt-1 text-sm text-muted-foreground">
-            {money(item.allInMonthlyCents)} a month · {minutes(item.commuteMinutes)} ·{" "}
-            {item.city ?? "Unknown"}
+            {[
+              `${money(item.allInMonthlyCents)} a month`,
+              item.commuteMinutes === null ? "Commute Unknown" : minutes(item.commuteMinutes),
+              item.city ?? "Unknown city",
+              item.approximateLocation ? "approximate location" : null,
+            ]
+              .filter(Boolean)
+              .join(" · ")}
           </span>
+          {item.overBudgetCents !== null && item.failedFilters.length === 1 && (
+            <span className="text-sm text-attention">{overLabel(item.overBudgetCents)}</span>
+          )}
           {item.userStatus !== "none" && (
             <span className="text-sm text-primary">
               {item.userStatus === "shortlisted" ? "Shortlisted" : "Not for me"}
             </span>
           )}
         </Link>
-        <span className="text-xl font-semibold text-primary">{item.score ?? "Unknown"}</span>
+        {!fails && <span className="text-xl font-semibold text-primary">{item.score ?? "Unknown"}</span>}
       </div>
     </li>
   );
@@ -81,7 +86,7 @@ export function RequirementsChecklist({ detail }: { detail: ListingDetail }) {
             <span className={check.status === "unknown" ? "text-attention" : ""}>
               {FILTER_LABELS[check.filter]}: {check.status === "unknown" ? "Unknown" : check.status}
             </span>{" "}
-            · {check.reason}
+            · {tidyText(check.reason)}
           </li>
         ))}
       </ul>
@@ -89,18 +94,26 @@ export function RequirementsChecklist({ detail }: { detail: ListingDetail }) {
   );
 }
 export function CostTable({ detail }: { detail: ListingDetail }) {
+  const unknownLines = detail.cost?.lines.filter((line) => line.status === "unknown") ?? [];
   return (
     <div>
-      {detail.cost?.lines.map((line) => (
-        <div key={line.key} className="flex justify-between gap-4 py-2">
-          <span>
-            {line.label}
-            <ProvenanceChip source={line.source} />
-            {line.note && <small className="block text-muted-foreground">{line.note}</small>}
-          </span>
-          <span className="shrink-0">{money(line.monthlyCents)}</span>
-        </div>
-      ))}
+      {detail.cost?.lines
+        .filter((line) => line.status !== "unknown")
+        .map((line) => (
+          <div key={line.key} className="flex justify-between gap-4 py-2">
+            <span>
+              {line.label}
+              <ProvenanceChip source={line.source} />
+              {line.note && <small className="block text-muted-foreground">{tidyText(line.note)}</small>}
+            </span>
+            <span className="shrink-0">{money(line.monthlyCents)}</span>
+          </div>
+        ))}
+      {unknownLines.length > 0 && (
+        <p className="py-2 text-attention">
+          Not stated in the post: {unknownLines.map((line) => line.label.toLowerCase()).join(", ")}
+        </p>
+      )}
       <div className="flex justify-between border-t border-line py-3 font-semibold">
         <span>All-in</span>
         <span>{money(detail.allInMonthlyCents)}</span>
@@ -111,7 +124,7 @@ export function CostTable({ detail }: { detail: ListingDetail }) {
       </div>
       <p className="mt-2 text-sm text-muted-foreground">
         {detail.cost?.transitPass?.status === "estimated"
-          ? detail.cost.transitPass.detail
+          ? tidyText(detail.cost.transitPass.detail)
           : "Transit pass: Unknown"}
       </p>
       <div className="mt-2 flex justify-between gap-4 text-sm text-muted-foreground">

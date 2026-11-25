@@ -22,6 +22,65 @@ export function unknownRegionPack(id: string): RegionPack {
   };
 }
 
+/**
+ * Other names for a pack: the cities and areas it covers. The setting can hold a pack id
+ * ("bay-area") or the name of the place the user searches in ("Palo Alto", "EVGR").
+ */
+const ALIASES: Readonly<Record<string, readonly string[]>> = {
+  [bayAreaPack.id]: [
+    "bay area",
+    "san francisco bay area",
+    "sf bay area",
+    "sf bay",
+    "peninsula",
+    "south bay",
+    "silicon valley",
+    "palo alto",
+    "east palo alto",
+    "stanford",
+    "stanford university",
+    "evgr",
+    "escondido village",
+    "menlo park",
+    "atherton",
+    "redwood city",
+    "san carlos",
+    "belmont",
+    "san mateo",
+    "burlingame",
+    "millbrae",
+    "san bruno",
+    "south san francisco",
+    "portola valley",
+    "woodside",
+    "los altos",
+    "los altos hills",
+    "mountain view",
+    "sunnyvale",
+    "santa clara",
+    "cupertino",
+    "milpitas",
+    "campbell",
+    "los gatos",
+    "san jose",
+  ],
+};
+
+/** Lower case, no punctuation, one space between words: "Palo-Alto, CA" and "palo alto" match. */
+export function normalizeRegionName(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/ (ca|california|usa)$/, "")
+    .trim();
+}
+
+const BY_NAME: ReadonlyMap<string, RegionPack> = new Map(
+  Object.values(PACKS).flatMap((pack) =>
+    [pack.id, pack.name, ...(ALIASES[pack.id] ?? [])].map((name) => [normalizeRegionName(name), pack] as const),
+  ),
+);
+
 export function getRegionPack(id: string): RegionPack {
-  return PACKS[id] ?? unknownRegionPack(id);
+  return PACKS[id] ?? BY_NAME.get(normalizeRegionName(id)) ?? unknownRegionPack(id);
 }

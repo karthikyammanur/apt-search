@@ -6,7 +6,7 @@
 import { eq } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
 import { enrichment } from "@/db/schema";
-import { checkLease } from "@/lib/domain";
+import { checkLease, checkMoveIn } from "@/lib/domain";
 import { supostToRaw } from "@/lib/intake/channels/supost";
 import { loadFacts } from "@/lib/intake/facts";
 import { processRaw } from "@/lib/intake/pipeline";
@@ -23,6 +23,7 @@ type Post = {
   absent: string[];
   bucket: string;
   leaseReason?: string;
+  moveInReason?: string;
 };
 
 const { posts } = jsonFixture<{ posts: Post[] }>("supost-run-2026-11-24.json");
@@ -60,6 +61,9 @@ describe("SUPost posts from the 2026-11-24 live run", () => {
     const [row] = await db.select().from(enrichment).where(eq(enrichment.listingId, listingId));
     expect(row?.bucket).toBe(post.bucket);
 
+    if (post.moveInReason) {
+      expect(checkMoveIn(facts, settings)).toMatchObject({ status: "fail", reason: post.moveInReason });
+    }
     if (post.leaseReason) {
       const lease = checkLease(facts, settings);
       expect(lease).toMatchObject({ status: "fail", reason: post.leaseReason });

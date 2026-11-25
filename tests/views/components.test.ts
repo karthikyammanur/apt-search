@@ -4,6 +4,7 @@ import { createElement as h } from "react";
 import { createDb } from "@/db";
 import { seedDemo } from "@/db/demo";
 import { runMigrations } from "@/db/run-migrations";
+import { tidyText } from "@/lib/domain";
 import { getBoard, getListing, type ListingDetail, type BoardItem } from "@/lib/queries";
 import {
   CostTable,
@@ -50,7 +51,7 @@ describe("demo-backed display components", () => {
     expect(html).toContain("<details");
     expect(html).toContain(`Passes all ${detail.filters!.results.length} requirements`);
     for (const result of detail.filters!.results)
-      expect(html).toContain(result.reason.replaceAll("&", "&amp;").replaceAll("'", "&#x27;"));
+      expect(html).toContain(tidyText(result.reason).replaceAll("&", "&amp;").replaceAll("'", "&#x27;"));
     expect(
       renderToStaticMarkup(
         h(RequirementsChecklist, {

@@ -8,4 +8,6 @@ export * from "./feedback";
 export * from "./explain";
 export { analyzeLease, type LeaseAnalysis } from "./lease";
 export { stayPeriod, acceptableLeaseMonths, DAYS_PER_MONTH, type Stay } from "./stay";
-export { fmtCents, fmtDate, fmtWeight } from "./format";
+export * from "./fails";
+export * from "./draft";
+export { fmtCents, fmtDate, fmtDay, fmtDayRange, fmtDollars, fmtWeight, tidyText } from "./format";

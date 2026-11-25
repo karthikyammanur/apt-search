@@ -32,7 +32,14 @@ export type Route = {
     departurePoint?: StopPoint | null;
     arrivalPoint?: StopPoint | null;
   }[];
+  /**
+   * Other itineraries the planner returned that are within ROUTE_CHOICE_WINDOW_MINUTES of this, the
+   * fastest one. They let the caller prefer the one with the cheaper pass. Absent when there are none.
+   */
+  alternatives?: Route[];
 };
+/** Itineraries within this many minutes of the fastest are treated as equally good ways to commute. */
+export const ROUTE_CHOICE_WINDOW_MINUTES = 5;
 export const seconds = z.number().finite().nonnegative();
 export const duration = z.string().regex(/^\d+(\.\d+)?s$/);
 export const minutes = (seconds: number) => Math.ceil(seconds / 60);

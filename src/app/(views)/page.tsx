@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { getBoard, getSettings, getMapPoints } from "@/lib/queries";
 import { z } from "zod";
+import { fmtDayRange, hiddenSummary, splitFails } from "@/lib/domain";
 import { ViewShell } from "@/components/view-shell";
 import { ListingCard, money } from "@/components/listing-values";
 import { ListingMap } from "@/components/listing-map";
@@ -38,6 +39,7 @@ export default async function Listings({
   const newToday = board.items.filter(
     (item) => item.firstSeen.slice(0, 10) === new Date().toISOString().slice(0, 10),
   ).length;
+  const fails = bucket === "fail" ? splitFails(visible) : null;
   const map = params.view === "map" && settings ? await getMapPoints() : null;
   return (
     <ViewShell>
@@ -47,7 +49,7 @@ export default async function Listings({
       </h1>
       <p className="mt-2 text-muted-foreground">
         {settings
-          ? `Under ${money(settings.budgetCapCents)} all-in, move in ${settings.moveInEarliest} to ${settings.moveInLatest}, ${settings.maxCommuteMinutes} min to work.`
+          ? `Under ${money(settings.budgetCapCents)} all-in, move in ${fmtDayRange(settings.moveInEarliest, settings.moveInLatest)}, ${settings.maxCommuteMinutes} min to work.`
           : "Seed the database to get started."}{" "}
         <Link href="/settings">Edit</Link>
       </p>
@@ -93,6 +95,29 @@ export default async function Listings({
       </nav>
       {map ? (
         <ListingMap items={visible} points={map} />
+      ) : fails ? (
+        <>
+          {fails.nearMisses.length > 0 && (
+            <section aria-label="Just over budget">
+              <h2 className="mt-6 text-base font-semibold">Just over budget</h2>
+              <ul aria-label="Just over budget listings">
+                {fails.nearMisses.map((item) => (
+                  <ListingCard key={item.id} item={item} />
+                ))}
+              </ul>
+            </section>
+          )}
+          {fails.others.length > 0 && (
+            <section aria-label="Other fails">
+              {fails.nearMisses.length > 0 && <h2 className="mt-6 text-base font-semibold">Other fails</h2>}
+              <ul aria-label="Listings">
+                {fails.others.map((item) => (
+                  <ListingCard key={item.id} item={item} />
+                ))}
+              </ul>
+            </section>
+          )}
+        </>
       ) : (
         <ul aria-label="Listings">
           {visible.map((item) => (
@@ -103,7 +128,7 @@ export default async function Listings({
       {!visible.length && <p className="py-6 text-muted-foreground">No listings in this view.</p>}
       <p className="mt-5 text-sm text-muted-foreground">
         {bucket !== "fail"
-          ? `${board.counts.fail} hidden: ${[...new Set(board.items.filter((item) => item.bucket === "fail").map((item) => item.failReason ?? "Requirements not met"))].join("; ")}.`
+          ? hiddenSummary(board.items.filter((item) => item.bucket === "fail"))
           : "Showing listings that fail requirements."}
       </p>
     </ViewShell>

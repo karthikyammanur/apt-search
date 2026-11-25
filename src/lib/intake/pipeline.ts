@@ -27,11 +27,12 @@ import {
 } from "@/lib/domain";
 import type { Llm } from "@/lib/llm";
 import type { RegionPack } from "@/lib/regions";
+import { approximatePlace, type ApproximatePlace } from "./approximate";
 import { analyzeFacts, enrichmentColumns, recompute, type Analysis } from "./analysis";
 import { findDuplicate, loadKnownListings, type DedupeMatch, type KnownListing } from "./dedupe";
 import { enrichListing, isGeocodable, cityFromFormatted, loadStops, type StopRow } from "./enrich";
 import { extractListing } from "./extract";
-import { knownFields, listingFactWrites, loadFacts, saveFacts, type FactWrite } from "./facts";
+import { factsFromWrites, knownFields, listingFactWrites, loadFacts, saveFacts, type FactWrite } from "./facts";
 import type { Geo } from "./geo";
 import {
   insertListing,
@@ -165,33 +166,54 @@ export function cheapFilters(facts: ListingFacts, settings: Settings, region: Re
 
 export type EnrichStageResult = { enriched: boolean; notes: string[]; columns: Record<string, unknown> };
 
-export async function stageEnrich(
-  deps: IntakeDeps,
-  listingId: number,
-  place: { address: string | null; lat: number | null; lng: number | null },
-): Promise<EnrichStageResult> {
-  const now = deps.now().toISOString();
+/**
+ * What enrichment found, not yet saved: the point, and the facts to write. Every network call is made here,
+ * so a post can be judged and enriched first and then written in one transaction.
+ */
+export type EnrichPlan = EnrichStageResult & {
+  location: { lat: number; lng: number; city?: string | null } | null;
+  writes: FactWrite[];
+};
+
+export type EnrichPlace = {
+  address: string | null;
+  lat: number | null;
+  lng: number | null;
+  /** A place the post names when it gives no street address, used for an approximate point. */
+  approximate?: ApproximatePlace | null;
+};
+
+/** Stage 6, network only: geocode, commute, bike, stops and places. Nothing is written. */
+export async function planEnrich(deps: IntakeDeps, place: EnrichPlace, have: ReadonlySet<string>): Promise<EnrichPlan> {
   let { lat, lng } = place;
   const notes: string[] = [];
+  const writes: FactWrite[] = [];
+  let location: EnrichPlan["location"] = null;
+  const stopped = (note: string): EnrichPlan => ({ enriched: false, notes: [note], columns: {}, location, writes });
   if (lat === null || lng === null) {
     if (!isGeocodable(place.address)) {
-      return { enriched: false, notes: ["no street address, so no commute"], columns: {} };
-    }
-    const found = await deps.geo.geocode(place.address);
-    if (!found.ok) return { enriched: false, notes: [`geocode: ${found.error}`], columns: {} };
-    lat = found.data.lat;
-    lng = found.data.lng;
-    const city = cityFromFormatted(found.data.address);
-    await setLocation(deps.db, listingId, { lat, lng, city });
-    const have = await knownFields(deps.db, listingId);
-    if (city && !have.has("city")) {
-      await saveFacts(deps.db, listingId, [{ field: "city", value: city, provenance: "api" }], now);
+      if (!place.approximate) return stopped("no street address, so no commute");
+      const guess = await deps.geo.geocode(place.approximate.query);
+      if (!guess.ok) return stopped(`approximate location: geocode ${guess.error}`);
+      lat = guess.data.lat;
+      lng = guess.data.lng;
+      location = { lat, lng };
+      writes.push({ field: "locationApproximate", value: true, provenance: "estimate", note: `Approximate location: ${place.approximate.label}` });
+      notes.push(`approximate location: ${place.approximate.label}`);
+    } else {
+      const found = await deps.geo.geocode(place.address);
+      if (!found.ok) return stopped(`geocode: ${found.error}`);
+      lat = found.data.lat;
+      lng = found.data.lng;
+      const city = cityFromFormatted(found.data.address);
+      location = { lat, lng, city };
+      if (city && !have.has("city")) writes.push({ field: "city", value: city, provenance: "api" });
     }
   } else {
-    await setLocation(deps.db, listingId, { lat, lng });
+    location = { lat, lng };
   }
   const office = await getOffice(deps);
-  if (!office) return { enriched: false, notes: ["office address could not be geocoded"], columns: {} };
+  if (!office) return stopped("office address could not be geocoded");
 
   const result = await enrichListing(deps.geo, {
     lat,
@@ -199,10 +221,23 @@ export async function stageEnrich(
     office,
     startDate: deps.settings.startDate,
     stops: await getStops(deps),
+    region: deps.region,
   });
-  await saveFacts(deps.db, listingId, result.facts, now);
+  writes.push(...result.facts);
   notes.push(...result.notes);
-  return { enriched: true, notes, columns: result.columns };
+  return { enriched: true, notes, columns: result.columns, location, writes };
+}
+
+/** Save what a plan found: the point and its facts. Database only. */
+export async function applyPlan(deps: IntakeDeps, listingId: number, plan: EnrichPlan): Promise<void> {
+  if (plan.location) await setLocation(deps.db, listingId, plan.location);
+  await saveFacts(deps.db, listingId, plan.writes, deps.now().toISOString());
+}
+
+export async function stageEnrich(deps: IntakeDeps, listingId: number, place: EnrichPlace): Promise<EnrichStageResult> {
+  const plan = await planEnrich(deps, place, await knownFields(deps.db, listingId));
+  await applyPlan(deps, listingId, plan);
+  return { enriched: plan.enriched, notes: plan.notes, columns: plan.columns };
 }
 
 // Stage 7: cost, full filters, score, and store.
@@ -253,7 +288,29 @@ function summarize(raw: RawListing, listingId: number, analysis: Analysis, facts
   });
 }
 
-export async function processRaw(deps: IntakeDeps, raw: RawListing): Promise<IntakeOutcome> {
+/** Adds the description and photo links a channel left out. Failing to fetch them is not an error. */
+async function withDetail(raw: RawListing): Promise<RawListing> {
+  if (!raw.detail) return raw;
+  try {
+    const found = await raw.detail();
+    if (!found) return raw;
+    return {
+      ...raw,
+      text: found.description ? `${raw.text}\n\n${found.description}` : raw.text,
+      photoUrls: [...new Set([...raw.photoUrls, ...found.photoUrls])],
+    };
+  } catch {
+    return raw;
+  }
+}
+
+/** Run database work as one transaction: it all lands, or (on an error or a cut-off) none of it does. */
+export function inTransaction<T>(deps: IntakeDeps, work: (tx: IntakeDeps) => Promise<T>): Promise<T> {
+  return deps.db.transaction((tx) => work({ ...deps, db: tx as unknown as Db }));
+}
+
+export async function processRaw(deps: IntakeDeps, input: RawListing): Promise<IntakeOutcome> {
+  let raw = input;
   try {
     const now = deps.now().toISOString();
     const known = await loadKnownListings(deps.db);
@@ -268,6 +325,7 @@ export async function processRaw(deps: IntakeDeps, raw: RawListing): Promise<Int
       if (await roommateLeadExists(deps.db, raw.url)) return outcome(raw, { status: "already_seen", note: "roommate lead" });
     }
 
+    raw = await withDetail(raw);
     const one = await stageExtract(deps, raw);
     if (!one.ok) {
       return outcome(raw, { status: one.kind === "rejected" ? "skipped" : "error", note: one.note });
@@ -284,27 +342,42 @@ export async function processRaw(deps: IntakeDeps, raw: RawListing): Promise<Int
 
     const match = stageDedupe(known, raw, draft);
     if (match && match.kind !== "photo_reuse") {
-      const merged = await stageMerge(deps, match, raw, draft);
-      if (merged.factsAdded > 0) {
-        const analysis = await recompute(deps.db, match.id, deps);
-        const facts = await loadFacts(deps.db, match.id);
-        return summarize(raw, match.id, analysis, facts, "merged", `merged by ${match.kind}`);
-      }
+      // One transaction: the source, the new facts and the recomputed analysis all land, or none do.
+      const merged = await inTransaction(deps, async (tx) => {
+        const { factsAdded } = await stageMerge(tx, match, raw, draft);
+        if (factsAdded === 0) return null;
+        const analysis = await recompute(tx.db, match.id, tx);
+        return { analysis, facts: await loadFacts(tx.db, match.id) };
+      });
+      if (merged) return summarize(raw, match.id, merged.analysis, merged.facts, "merged", `merged by ${match.kind}`);
       return outcome(raw, { status: "merged", listingId: match.id, note: `merged by ${match.kind}` });
     }
 
+    // A post counts as seen once it is saved, so it is saved last and all at once. Everything that needs the
+    // network (the point, the commute, the places) is fetched first and only then written in one transaction.
+    // A post cut off at the time limit has written nothing, so the next run starts it again.
     const trust = stageTrust(known, raw, draft, match);
-    const listingId = await stageStore(deps, raw, draft, trust);
-
-    const early = cheapFilters(await loadFacts(deps.db, listingId), deps.settings, deps.region);
-    if (early.length > 0) {
-      const { analysis, facts } = await stageAnalyze(deps, listingId, trust, {}, { score: false });
-      return summarize(raw, listingId, analysis, facts, "stored", `failed early: ${early[0]?.reason ?? ""}`);
-    }
-
-    const enriched = await stageEnrich(deps, listingId, { address: draft.address, lat: draft.lat, lng: draft.lng });
-    const { analysis, facts } = await stageAnalyze(deps, listingId, trust, enriched.columns, { score: true });
-    return summarize(raw, listingId, analysis, facts, "stored", enriched.notes[0] ?? null);
+    const stated: FactWrite[] = [
+      ...listingFactWrites(draft.facts, raw.url),
+      { field: "scamChecks", value: trust.checks, provenance: "estimate" },
+    ];
+    const early = cheapFilters(factsFromWrites(stated), deps.settings, deps.region);
+    const plan =
+      early.length > 0
+        ? null
+        : await planEnrich(
+            deps,
+            { address: draft.address, lat: draft.lat, lng: draft.lng, approximate: approximatePlace(raw.text, draft.facts.city) },
+            new Set(stated.filter((write) => write.value !== null && write.value !== undefined).map((write) => write.field)),
+          );
+    const stored = await inTransaction(deps, async (tx) => {
+      const listingId = await stageStore(tx, raw, draft, trust);
+      if (plan) await applyPlan(tx, listingId, plan);
+      const { analysis, facts } = await stageAnalyze(tx, listingId, trust, plan?.columns ?? {}, { score: plan !== null });
+      return { listingId, analysis, facts };
+    });
+    const note = plan ? (plan.notes[0] ?? null) : `failed early: ${early[0]?.reason ?? ""}`;
+    return summarize(raw, stored.listingId, stored.analysis, stored.facts, "stored", note);
   } catch (error) {
     // Never throw across the pipeline boundary. Only the error name goes out, not its text,
     // which could echo listing content.

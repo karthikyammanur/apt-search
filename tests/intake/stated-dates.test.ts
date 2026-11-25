@@ -31,7 +31,6 @@ describe("statedDates: ranges and open ends written in the post", () => {
   });
 
   it.each([
-    "Long-term EVGR D Junior 2B2B sublease for 1 bedroom starting from Feb or March",
     "1B1B studio next to Stanford, 1m to EV, avaliable after Dec.",
     "Room in 2B1B Apartment, $1560, decent market nearby",
     "Price: $1800\nPosted: 2026-11-24T02:38:23.957+00:00",
@@ -39,6 +38,25 @@ describe("statedDates: ranges and open ends written in the post", () => {
     "Jan 9 to Jan 2",
   ])("states no range: %s", (text) => {
     expect(statedDates(text, REF)).toEqual({ availableFrom: null, leaseEnd: null, openEnded: false });
+  });
+
+  it.each([
+    { text: "Long-term EVGR D Junior 2B2B sublease for 1 bedroom starting from Feb or March", from: "2027-02-01" },
+    { text: "Room available Jan 5", from: "2027-01-05" },
+    { text: "Available from December", from: "2026-12-01" },
+    { text: "Move-in: Feb 3rd", from: "2027-02-03" },
+    { text: "starting Mar", from: "2027-03-01" },
+  ])("$text is a start with no end: $from", ({ text, from }) => {
+    expect(statedDates(text, REF)).toEqual({ availableFrom: from, leaseEnd: null, openEnded: false });
+  });
+
+  it("does not take a month that is not tied to a start word", () => {
+    expect(statedDates("Great room 10 minutes from campus. February rent is paid.", REF).availableFrom).toBeNull();
+    expect(statedDates("available after Dec.", REF).availableFrom).toBeNull();
+  });
+
+  it("a range still wins over a start word", () => {
+    expect(statedDates("starting from Dec 12 to Jan 9", REF)).toEqual({ availableFrom: "2026-12-12", leaseEnd: "2027-01-09", openEnded: false });
   });
 
   it("counts the year from the reference date: December in December is this year, in January next", () => {

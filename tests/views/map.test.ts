@@ -5,7 +5,7 @@ import { seedDemo } from "@/db/demo";
 
 vi.mock("@/app/(views)/auth", () => ({ requireLogin: vi.fn() }));
 vi.mock("@/lib/providers", () => ({
-  geocode: vi.fn(async () => ({ ok: true, data: { lat: 1, lng: 2 } })),
+  geocode: vi.fn(async () => ({ ok: true, data: { lat: 37.4419, lng: -122.143 } })),
 }));
 import { getMapPoints } from "@/lib/queries/map";
 import { requireLogin } from "@/app/(views)/auth";
@@ -18,7 +18,7 @@ beforeAll(async () => {
 it("checks login before returning stations and a fake office point", async () => {
   const result = await getMapPoints({ db });
   expect(requireLogin).toHaveBeenCalled();
-  expect(result.office).toEqual({ lat: 1, lng: 2 });
+  expect(result.office).toEqual({ lat: 37.4419, lng: -122.143 });
   expect(result.stations.length).toBeGreaterThan(0);
   expect(result.stations).toHaveLength(5);
 });

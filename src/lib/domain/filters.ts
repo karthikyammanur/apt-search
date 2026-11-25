@@ -114,6 +114,9 @@ function routedByFreeProvider(fact: { provenance: string; note?: string | null }
   return match !== null && (FREE_COMMUTE_PROVIDERS as readonly string[]).includes(match[1]!.toLowerCase());
 }
 
+/** From an approximate location, a commute this short or shorter passes; a longer one is Unknown. */
+export const APPROXIMATE_COMMUTE_PASS_MINUTES = 20;
+
 /**
  * 4. Commute without a car within my limit. A commute a free provider routed, within 5 minutes of the
  * limit, is Unknown rather than Pass or Fail: those providers can be a few minutes off, so the last
@@ -126,6 +129,15 @@ export function checkCommute(facts: ListingFacts, settings: Settings): FilterRes
     return unknown("commute", "Commute is Unknown", [
       { field: "commuteMinutes", ask: "landlord", text: "What is the exact address, or the nearest cross streets?" },
     ]);
+  }
+  // A point guessed from a place name can be several minutes from the real address, so only a short
+  // commute counts as a pass. A longer one waits for the address.
+  if (facts.locationApproximate?.value === true) {
+    return minutes <= Math.min(APPROXIMATE_COMMUTE_PASS_MINUTES, settings.maxCommuteMinutes)
+      ? pass("commute", `${minutes} min door to office from an approximate location, within ${Math.min(APPROXIMATE_COMMUTE_PASS_MINUTES, settings.maxCommuteMinutes)} min`)
+      : unknown("commute", "Approximate location, confirm the address", [
+          { field: "commuteMinutes", ask: "landlord", text: "What is the exact address, or the nearest cross streets?" },
+        ]);
   }
   if (routedByFreeProvider(commute) && Math.abs(minutes - settings.maxCommuteMinutes) <= COMMUTE_MARGIN_MINUTES) {
     return unknown("commute", "Commute close to the limit, check it on Google Maps", [

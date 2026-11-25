@@ -18,9 +18,10 @@
       "price": 1800,
       "created_at": "2026-11-24T02:38:23.957+00:00",
       "reply": { "post_type": "room_offered", "type": "room", "lease_type": "sublet", "rent_usd": 1800 },
-      "expected": { "type": "room", "rentCents": 180000, "leaseType": "sublet" },
-      "absent": ["availableFrom", "leaseEnd", "privateBedroom"],
-      "bucket": "needs_info"
+      "expected": { "type": "room", "rentCents": 180000, "leaseType": "sublet", "availableFrom": "2027-02-01" },
+      "absent": ["leaseEnd", "privateBedroom"],
+      "bucket": "fail",
+      "moveInReason": "Available Feb 1, 2027, after Jan 8, 2027"
     },
     {
       "label": "#3 furnished room Dec 15 to 22",
@@ -52,7 +53,8 @@
       "reply": { "post_type": "whole_place_offered", "type": "studio", "rent_usd": 2400 },
       "expected": { "type": "studio", "rentCents": 240000 },
       "absent": ["availableFrom", "leaseEnd", "leaseType"],
-      "bucket": "needs_info"
+      "bucket": "needs_info",
+      "place": "Stanford University, Stanford, CA"
     },
     {
       "label": "#6 room with a private bathroom until December",

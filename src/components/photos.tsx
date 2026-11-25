@@ -22,6 +22,9 @@ export function Photo({
         <img
           src={url}
           alt="Listing photo"
+          // The photo host may refuse a request that says which page it comes from.
+          referrerPolicy="no-referrer"
+          loading="lazy"
           className="h-full w-full object-cover"
           onError={() => setFailed(true)}
         />

@@ -21,7 +21,8 @@
     "db:seed": "tsx src/db/seed.ts",
     "db:seed:demo": "tsx src/db/seed-demo.ts",
     "prepare": "husky",
-    "intake:once": "tsx src/lib/intake/cli.ts"
+    "intake:once": "tsx src/lib/intake/cli.ts",
+    "recheck": "tsx src/lib/intake/recheck-cli.ts"
   },
   "dependencies": {
     "@ai-sdk/openai-compatible": "^3.0.94",

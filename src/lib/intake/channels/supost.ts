@@ -1,13 +1,13 @@
 // SUPost channel: poll housing listings through the SUPost provider (a documented public API).
-// The API gives a title, a price, a date and a link, and no listing body. No listing page is
-// ever opened. SUPost covers the Stanford area, so it is skipped for any other region.
+// The list API gives a title, a price, a date and a link, and no listing body. The body and photo
+// links come from SUPost's agent server, one call per post that is new. No listing page is ever opened. SUPost covers the Stanford area, so it is skipped for any other region.
 
 import type { Settings } from "@/lib/domain";
 import type { createSupost } from "@/lib/providers";
 import type { RawListing } from "../types";
 import type { Collected } from "./types";
 
-type SupostClient = Pick<ReturnType<typeof createSupost>, "listings">;
+type SupostClient = Pick<ReturnType<typeof createSupost>, "listings"> & Partial<Pick<ReturnType<typeof createSupost>, "detail">>;
 type SupostItem = {
   id: number;
   title: string | null;
@@ -19,7 +19,7 @@ type SupostItem = {
 
 const KINDS = ["rooms", "shares", "sublets"] as const;
 
-export function supostToRaw(item: SupostItem): RawListing | null {
+export function supostToRaw(item: SupostItem, client?: SupostClient): RawListing | null {
   const title = item.title?.trim();
   if (!title) return null;
   const lines = [
@@ -38,6 +38,12 @@ export function supostToRaw(item: SupostItem): RawListing | null {
     // The price is a field of the API record, so it counts as stated by the listing.
     prefill: item.price !== null && item.price > 0 ? { facts: { rentCents: Math.round(item.price * 100) } } : undefined,
     meta: { stanfordVerified: item.stanford_verified ? 1 : 0, supostId: item.id },
+    detail: client?.detail
+      ? async () => {
+          const found = await client.detail!(item.id);
+          return found.ok ? found.data : null;
+        }
+      : undefined,
   };
 }
 
@@ -52,7 +58,7 @@ export async function collectSupost(client: SupostClient, settings: Pick<Setting
       continue;
     }
     for (const item of result.data.listings) {
-      const raw = supostToRaw(item);
+      const raw = supostToRaw(item, client);
       if (raw?.url && !byUrl.has(raw.url)) byUrl.set(raw.url, raw);
     }
   }

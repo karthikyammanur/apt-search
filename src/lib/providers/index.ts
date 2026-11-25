@@ -3,7 +3,7 @@ export * from "./types";
 export * from "./fallbacks";
 export { google, createGoogle } from "./google";
 export { transitland, createTransitland } from "./transitland";
-export { geoapify, createGeoapify } from "./geoapify";
+export { geoapify, createGeoapify, GEOAPIFY_KIND_CATEGORIES } from "./geoapify";
 export { overpass, createOverpass } from "./overpass";
 export { supost, createSupost } from "./supost";
 export { rentcast, createRentcast } from "./rentcast";

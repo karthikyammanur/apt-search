@@ -80,6 +80,43 @@ describe("regions without a pack", () => {
   });
 });
 
+describe("region names and aliases", () => {
+  it.each([
+    "palo alto",
+    "Palo Alto",
+    "PALO ALTO",
+    "  Palo   Alto  ",
+    "Palo Alto, CA",
+    "palo-alto",
+    "Stanford",
+    "EVGR",
+    "Menlo Park",
+    "Mountain View",
+    "Sunnyvale",
+    "Redwood City",
+    "San Jose",
+    "Bay Area",
+    "San Francisco Bay Area",
+    "BAY-AREA",
+  ])("%s is the Bay Area pack", (name) => {
+    expect(getRegionPack(name)).toBe(bayAreaPack);
+  });
+
+  it("prices a pass and the extras for a city name, instead of saying there is no pack", () => {
+    const pack = getRegionPack("palo alto");
+    expect(pack.hasData).toBe(true);
+    expect(pack.internetMonthly().status).toBe("estimate");
+    expect(pack.cheapestPass({ legs: [{ mode: "transit", agency: "vta" }] })).toMatchObject({ status: "estimate" });
+  });
+
+  it("still answers Unknown for a place no pack covers, and says which", () => {
+    const pack = getRegionPack("Los Angeles");
+    expect(pack.hasData).toBe(false);
+    expect(pack.internetMonthly()).toMatchObject({ status: "unknown", reason: expect.stringContaining("Los Angeles") });
+    expect(getRegionPack("")).toMatchObject({ hasData: false });
+  });
+});
+
 describe("rounding", () => {
   it.each([
     { n: 1, d: 2, out: 1 },

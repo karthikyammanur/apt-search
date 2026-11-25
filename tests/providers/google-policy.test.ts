@@ -115,20 +115,17 @@ describe("nearby places order", () => {
         },
       },
       geoapify: {
-        places: () => {
+        // One request per kind: it answers only for the categories it was asked about.
+        places: (_center: unknown, _radius: unknown, categories: string) => {
           calls.push("geoapify");
+          const all = [
+            geoapifyPlace(["commercial", "commercial.supermarket"], "Geo Market"),
+            geoapifyPlace(["sport", "sport.fitness", "sport.fitness.fitness_centre"], "Geo Gym"),
+            geoapifyPlace(["catering", "catering.cafe"], null),
+            geoapifyPlace(["commercial.clothing"], "Not Wanted"),
+          ];
           return Promise.resolve(
-            geoapify === "ok"
-              ? {
-                  ok: true,
-                  data: [
-                    geoapifyPlace(["commercial", "commercial.supermarket"], "Geo Market"),
-                    geoapifyPlace(["sport", "sport.fitness", "sport.fitness.fitness_centre"], "Geo Gym"),
-                    geoapifyPlace(["catering", "catering.cafe"], null),
-                    geoapifyPlace(["commercial.clothing"], "Not Wanted"),
-                  ],
-                }
-              : down,
+            geoapify === "ok" ? { ok: true, data: all.filter((p) => p.categories.includes(categories)) } : down,
           );
         },
       },
@@ -141,32 +138,33 @@ describe("nearby places order", () => {
   ])("%s: Overpass first, mapped to the app's place kinds, and never Google", async (_name, env) => {
     const calls: string[] = [];
     const found = await createPlaces(clients(calls, "ok"), env)(from, 1500);
-    expect(found).toEqual({
-      ok: true,
-      data: [{ id: "node/1", name: "Market", lat: 37.4, lng: -122.1, types: ["grocery_store"], rating: null }],
-    });
+    expect(found).toMatchObject({ ok: true });
+    if (!found.ok) return;
+    expect([...found.data]).toEqual([{ id: "node/1", name: "Market", lat: 37.4, lng: -122.1, types: ["grocery_store"], rating: null }]);
+    // OpenStreetMap found no gym and no cafe, which does not prove there are none.
+    expect(found.data.notChecked).toEqual(["gym", "cafe"]);
     expect(calls).toEqual(["overpass"]);
   });
 
   it("falls back to Geoapify Places when Overpass fails, and maps its categories", async () => {
     const calls: string[] = [];
     const found = await createPlaces(clients(calls, "down"), PRODUCTION)(from, 1500);
-    expect(calls).toEqual(["overpass", "geoapify"]);
-    expect(found).toEqual({
-      ok: true,
-      data: [
-        { id: "p-commercial", name: "Geo Market", lat: 37.4, lng: -122.1, types: ["grocery_store"], rating: null },
-        { id: "p-sport", name: "Geo Gym", lat: 37.4, lng: -122.1, types: ["gym"], rating: null },
-        { id: "p-catering", name: "cafe", lat: 37.4, lng: -122.1, types: ["cafe"], rating: null },
-      ],
-    });
+    expect(calls).toEqual(["overpass", "geoapify", "geoapify", "geoapify"]);
+    expect(found).toMatchObject({ ok: true });
+    if (!found.ok) return;
+    expect([...found.data]).toEqual([
+      { id: "p-commercial", name: "Geo Market", lat: 37.4, lng: -122.1, types: ["grocery_store"], rating: null },
+      { id: "p-sport", name: "Geo Gym", lat: 37.4, lng: -122.1, types: ["gym"], rating: null },
+      { id: "p-catering", name: "cafe", lat: 37.4, lng: -122.1, types: ["cafe"], rating: null },
+    ]);
+    expect(found.data.notChecked).toBeUndefined();
   });
 
   it("is an error only when Overpass and Geoapify both fail, and Google is still not tried in production", async () => {
     const calls: string[] = [];
     const found = await createPlaces(clients(calls, "down", "down"), PRODUCTION)(from, 1500);
     expect(found).toEqual({ ok: false, error: "network" });
-    expect(calls).toEqual(["overpass", "geoapify"]);
+    expect(calls).toEqual(["overpass", "geoapify", "geoapify", "geoapify"]);
   });
 
   it("laptop: Google first, then Overpass, then Geoapify", async () => {
@@ -179,6 +177,6 @@ describe("nearby places order", () => {
     const base = clients(calls, "down") as unknown as Record<string, unknown>;
     const withGoogleDown = { ...base, google: { nearby: () => (calls.push("google"), Promise.resolve(down)) } } as never;
     await createPlaces(withGoogleDown, {})(from, 1500);
-    expect(calls).toEqual(["google", "overpass", "geoapify"]);
+    expect(calls).toEqual(["google", "overpass", "geoapify", "geoapify", "geoapify"]);
   });
 });

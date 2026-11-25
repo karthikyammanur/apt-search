@@ -77,6 +77,7 @@ export const FACT_SCHEMAS = {
   groceryWalkMinutes: minutes,
   gymWalkMinutes: minutes,
   cafeWalkMinutes: z.array(minutes),
+  locationApproximate: flag,
   reviews: z.object({ averageRating: z.number().min(0).max(5), recentCount: z.number().int().nonnegative() }),
   scamChecks: z.object(
     Object.fromEntries(SCAM_CHECK_IDS.map((id) => [id, scamStatus])) as Record<
@@ -160,6 +161,22 @@ export async function saveFacts(
     saved += 1;
   }
   return saved;
+}
+
+/**
+ * The facts a set of writes would give once saved, without saving them: what loadFacts returns for a listing
+ * that has only these rows. It lets the pipeline judge a post before anything is written.
+ */
+export function factsFromWrites(writes: readonly FactWrite[]): ListingFacts {
+  const out = unknownListing();
+  const target = out as Record<string, Fact<unknown> | null>;
+  for (const write of writes) {
+    if (write.value === null || write.value === undefined) continue;
+    const parsed = FACT_SCHEMAS[write.field].safeParse(write.value);
+    if (!parsed.success) continue;
+    target[write.field] = { value: parsed.data, provenance: write.provenance, sourceUrl: write.sourceUrl ?? null, note: write.note ?? null };
+  }
+  return out;
 }
 
 /** Facts a post states, written with provenance `listing`. */

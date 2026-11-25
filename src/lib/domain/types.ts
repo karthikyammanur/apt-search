@@ -103,6 +103,11 @@ export interface ListingFactValues {
   gymWalkMinutes: number;
   /** Walk minutes to each cafe found nearby. Empty means none. */
   cafeWalkMinutes: number[];
+  /**
+   * True when the listing has no street address and its point is a guess from a place it names
+   * (a neighbourhood, cross streets, a station or a city). Always an estimate.
+   */
+  locationApproximate: boolean;
 
   // Trust and people.
   reviews: Reviews;
@@ -152,6 +157,7 @@ export function unknownListing(): ListingFacts {
     groceryWalkMinutes: null,
     gymWalkMinutes: null,
     cafeWalkMinutes: null,
+    locationApproximate: null,
     reviews: null,
     scamChecks: null,
     hasRoommates: null,

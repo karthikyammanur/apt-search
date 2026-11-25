@@ -24,7 +24,9 @@ export function createOverpass(options: Pick<ClientOptions, "transport"> = {}) {
       if (!areaInput.safeParse({ center, radiusMeters }).success)
         return Promise.resolve(failure("bad_response"));
       const area = `(around:${radiusMeters},${center.lat},${center.lng})`;
-      const data = `[out:json][timeout:15];(nwr[shop~"^(supermarket|grocery|convenience)$"]${area};nwr[leisure=fitness_centre]${area};nwr[amenity=cafe]${area};);out center tags;`;
+      // Grocery is supermarkets and grocery stores only: convenience stores and gas stations are left out.
+      // Gyms are mapped three ways in OpenStreetMap: fitness centres, gyms, and sports centres for fitness.
+      const data = `[out:json][timeout:15];(nwr[shop~"^(supermarket|grocery)$"]${area};nwr[leisure=fitness_centre]${area};nwr[amenity=gym]${area};nwr[leisure=sports_centre][sport~"fitness"]${area};nwr[amenity=cafe]${area};);out center tags;`;
       const transport = options.transport ?? cachedFetch;
       let result;
       for (const url of [

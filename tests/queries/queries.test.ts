@@ -63,20 +63,22 @@ describe("demo seed", () => {
     expect(rows.map((r) => r.id).sort((a, b) => a - b)).toEqual(Array.from({ length: 12 }, (_, i) => i + 1));
   });
 
-  it("treats an in-memory database as local, so the reset above is allowed", () => {
+  it("treats an in-memory database as local, so the seeds above are allowed", () => {
     expect(databaseProtocol(db)).toBe("file");
   });
 
-  it.each(["libsql://127.0.0.1:1?tls=0", "https://127.0.0.1:1"])(
-    "refuses to reset a remote database (%s) before sending any query",
-    async (url) => {
-      // Nothing listens on port 1: if the guard ran after a query, the error would be a
-      // connection failure instead of the refusal. No live service is contacted.
-      const remote = createDb(url, "");
-      await expect(seedDemo(remote, { now: NOW, reset: true })).rejects.toThrow(/Refusing to reset a remote database/);
-      (remote as typeof remote & { $client: { close(): void } }).$client.close();
-    },
-  );
+  it.each([
+    ["libsql://127.0.0.1:1?tls=0", true],
+    ["https://127.0.0.1:1", true],
+    ["libsql://127.0.0.1:1?tls=0", false],
+    ["https://127.0.0.1:1", false],
+  ])("refuses to seed a remote database (%s, reset %s) before sending any query", async (url, reset) => {
+    // Nothing listens on port 1: if the guard ran after a query, the error would be a
+    // connection failure instead of the refusal. No live service is contacted.
+    const remote = createDb(url, "");
+    await expect(seedDemo(remote, { now: NOW, reset })).rejects.toThrow(/Refusing to seed demo data into a remote database/);
+    (remote as typeof remote & { $client: { close(): void } }).$client.close();
+  });
 });
 
 describe("getBoard", () => {

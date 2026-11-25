@@ -515,7 +515,8 @@ export function databaseProtocol(db: Db): string {
 /**
  * Write the demo data into a migrated database. Refuses a database that already has listings
  * unless `reset` is set, which first deletes every listing, lead, run, stop, weight and setting.
- * A reset runs only on a local SQLite file (or memory), never on a remote database such as Turso.
+ * Seeding, with or without reset, runs only on a local SQLite file (or memory), never on a
+ * remote database such as Turso: demo data must never reach production.
  */
 export async function seedDemo(
   db: Db,
@@ -523,8 +524,8 @@ export async function seedDemo(
 ): Promise<DemoSeedResult> {
   // Checked on the open connection, before any query, so it holds whatever URL opened it.
   const protocol = databaseProtocol(db);
-  if (options.reset && protocol !== "file") {
-    throw new Error(`Refusing to reset a remote database (protocol "${protocol}"). A demo reset runs only on a local file.`);
+  if (protocol !== "file") {
+    throw new Error(`Refusing to seed demo data into a remote database (protocol "${protocol}"). The demo seed runs only on a local file.`);
   }
   const now = options.now ?? new Date();
   const existing = await db.select({ id: listings.id }).from(listings).limit(1);

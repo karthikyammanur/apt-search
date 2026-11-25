@@ -920,3 +920,13 @@ The real capture ran against `data/step7-live.db`, an ignored isolated database 
 
 ### Open risks
 1. A non-reset seed into an empty remote database is still allowed (it refuses only when listings exist).
+
+## 2026-11-24, demo seed refuses remote databases entirely, Claude Code
+
+### Changed
+- `src/db/demo.ts`: `seedDemo` now refuses any non-`file` connection, with or without `reset`, before any query. Demo data can no longer reach a remote database such as Turso. This closes open risk 1 of the previous entry.
+- `tests/queries/queries.test.ts`: the remote refusal cases now cover `reset` true and false for `libsql://` and `https://` URLs (port 1, no live call).
+
+### Commands
+- With the old reset-only guard: the two `reset false` cases fail. With the new guard: 30 passed.
+- `npm run check`: 45 files, 731 tests passed. `npm run test:e2e`: 7 passed. `npm run build`: succeeded.

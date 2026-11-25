@@ -6,6 +6,7 @@ import {
   getTransitCommute,
   getWalkBike,
   google,
+  googleMode,
   overpass,
   type Coordinates,
   type Result,
@@ -29,14 +30,18 @@ export type Geo = {
   places(center: Coordinates, radiusMeters: number): Promise<Result<Place[]>>;
 };
 
-/** Google Places first, then OpenStreetMap through Overpass. */
-async function places(center: Coordinates, radiusMeters: number): Promise<Result<Place[]>> {
-  const first = await google.nearby(center, radiusMeters);
-  if (first.ok) return first;
-  const second = await overpass.nearby(center, radiusMeters);
-  if (!second.ok) return second;
+type PlacesClients = Pick<{ google: typeof google; overpass: typeof overpass }, "google" | "overpass">;
+
+/** OpenStreetMap elements from Overpass, reduced to the three place kinds the app cares about. */
+async function overpassPlaces(
+  client: PlacesClients["overpass"],
+  center: Coordinates,
+  radiusMeters: number,
+): Promise<Result<Place[]>> {
+  const found = await client.nearby(center, radiusMeters);
+  if (!found.ok) return found;
   const mapped: Place[] = [];
-  for (const element of second.data.elements) {
+  for (const element of found.data.elements) {
     const lat = element.lat ?? element.center?.lat;
     const lng = element.lon ?? element.center?.lon;
     if (lat === undefined || lng === undefined) continue;
@@ -61,6 +66,27 @@ async function places(center: Coordinates, radiusMeters: number): Promise<Result
   }
   return { ok: true, data: mapped };
 }
+
+/**
+ * Nearby places. Which source goes first follows googleMode: Google first on a laptop, Overpass first
+ * on a Vercel preview, and Overpass only on Vercel production (the Demo Key may not be used there).
+ */
+export function createPlaces(clients: PlacesClients = { google, overpass }, env: Record<string, string | undefined> = process.env) {
+  return async (center: Coordinates, radiusMeters: number): Promise<Result<Place[]>> => {
+    const viaGoogle = () => clients.google.nearby(center, radiusMeters);
+    const viaOverpass = () => overpassPlaces(clients.overpass, center, radiusMeters);
+    const mode = googleMode(env);
+    const order = mode === "primary" ? [viaGoogle, viaOverpass] : mode === "fallback" ? [viaOverpass, viaGoogle] : [viaOverpass];
+    let last: Result<Place[]> = { ok: false, error: "disabled" };
+    for (const attempt of order) {
+      last = await attempt();
+      if (last.ok) return last;
+    }
+    return last;
+  };
+}
+
+const places = createPlaces();
 
 export const liveGeo: Geo = {
   geocode: (address) => geocodeWithFallback(address),

@@ -4,8 +4,10 @@
 
 import { createHash, timingSafeEqual } from "node:crypto";
 import { createDeps } from "@/lib/intake/deps";
-import { runAutomaticChannels } from "@/lib/intake/run";
+import { CRON_BUDGET, runAutomaticChannels } from "@/lib/intake/run";
 
+// Vercel Hobby cuts a function off at 300 s (docs/deploy.md). CRON_BUDGET stops new work well before
+// that, so a run always finishes, records itself and answers.
 export const maxDuration = 300;
 export const dynamic = "force-dynamic";
 
@@ -20,7 +22,7 @@ export async function GET(request: Request): Promise<Response> {
     return Response.json({ error: "unauthorized" }, { status: 401 });
   }
   const deps = await createDeps();
-  const summaries = await runAutomaticChannels(deps);
+  const summaries = await runAutomaticChannels(deps, { limit: CRON_BUDGET.perChannel, budget: CRON_BUDGET });
   return Response.json({
     ok: true,
     channels: summaries.map((s) => ({

@@ -930,3 +930,31 @@ The real capture ran against `data/step7-live.db`, an ignored isolated database 
 ### Commands
 - With the old reset-only guard: the two `reset false` cases fail. With the new guard: 30 passed.
 - `npm run check`: 45 files, 731 tests passed. `npm run test:e2e`: 7 passed. `npm run build`: succeeded.
+
+## 2026-11-24, deploy-prep: Vercel Hobby and Turso, Claude Code
+
+No step in TASKS.md covers deployment, so no status was changed. Work was done on the user's explicit request; nothing was deployed and no `.env*` file was read.
+
+### Changed
+- `src/db/index.ts`: `resolveDatabaseConfig` reads `DATABASE_URL` and `DATABASE_AUTH_TOKEN`, and on a Vercel deployment also `TURSO_DATABASE_URL` and `TURSO_AUTH_TOKEN` (the names the Turso integration creates). `TURSO_*` is ignored off Vercel so a pulled `.env.local` cannot aim local dev at production. `describeDatabaseTarget` and `src/db/migrate.ts` now print which database a migration targets (host only) and warn when `TURSO_DATABASE_URL` is set but ignored.
+- `src/lib/providers/fallbacks.ts`, `src/lib/intake/geo.ts`: `googleMode` (primary on a laptop, fallback on a Vercel preview, off on Vercel production or when `VERCEL_ENV` is missing). Production uses Transitland, Geoapify and Overpass only.
+- `src/lib/intake/run.ts`, `src/app/api/cron/intake/route.ts`: `CRON_BUDGET` (12 posts per run, 6 per channel, no new post after 150 s, a post abandoned at 270 s) against Hobby's 300 s limit. A channel that cannot start is skipped without a `channel_runs` row.
+- `scripts/compare-providers.ts` and `npm run compare:providers`: one side-by-side run of Google and the free providers on the neutral demo listings.
+- `docs/deploy.md` (new), `.env.example` (notes only).
+- Tests: `tests/db/database-config.test.ts`, `tests/providers/google-policy.test.ts`, `tests/intake/run-budget.test.ts` (21 tests).
+
+### Commands
+- `npm run check`: 48 files, 752 tests passed (was 45 files, 731).
+- `npm run compare:providers` against a scratch `data/compare.db` (deleted afterwards): transit median +0.5 min but a 21 min largest gap, Caltrain zone priceable 6 of 6 with Google and 0 of 6 with Transitland, walk median +3 min, bike median +1 min, Overpass answered 4 of 6. Full table in `docs/deploy.md`.
+- Vercel limits read from the Vercel docs (URLs in `docs/deploy.md`): Hobby functions 300 s default and maximum with Fluid Compute, cron once a day at most and run within the scheduled hour.
+
+### Assumptions
+- A Vercel preview deployment may use Google as a last resort, production never. Local runs keep Google first.
+- `npm run build` and `npm run test:e2e` were not run, to avoid disturbing a running dev server.
+
+### Open risks
+1. Transitland returns no stop names, so Caltrain pass prices are Unknown in production. Needs a decision before step 8.
+2. Transitland disagreed with Google by 18 to 21 min on two short trips.
+3. Public Overpass failed on 2 of 6 calls; places show Unknown when it does.
+4. `/api/capture` also has `maxDuration = 300` with no budget. One post at a time, but a slow model chain could reach the limit.
+5. This work edited files owned by steps 1, 2 and 5 (`src/db/`, `src/lib/providers/fallbacks.ts`, `src/lib/intake/`).

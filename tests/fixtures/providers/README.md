@@ -9,7 +9,6 @@ Recorded on 2026-11-24, trimmed to the fields the clients read, from the demo li
 - `transitland-walk-first.json`: a walk-only itinerary (1808 s) listed before a VTA bus trip (853 s). Checks that the quickest itinerary is chosen, not the first.
 - `transitland-caltrain.json`: one trip with a Caltrain leg between two platform stops (with stop ids and coordinates) and a VTA bus leg. Checks that Caltrain stations are matched from stop points.
 - `geoapify-places.json`: two of the 13 places Geoapify returned near the first demo listing (a supermarket and a cafe).
-- `supost-detail.json`: the shape of SUPost's agent-server reply for one post (a description and photo links), with a neutral id, title and image links (the description is as returned). Checks that the description and photos are read, and that a post without them is still stored.
 
 Overpass returned a network error. RentCast and Gmail credentials were blank in the loaded server environment. There are no fabricated live-response fixtures for these providers. Tests exercise their disabled or request-validation behavior and the fallback interface using normalized recorded Google results as client stubs. Successful RentCast, Overpass and Gmail payload handling still needs live verification when available.
 

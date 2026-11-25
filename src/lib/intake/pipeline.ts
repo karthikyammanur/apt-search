@@ -288,29 +288,12 @@ function summarize(raw: RawListing, listingId: number, analysis: Analysis, facts
   });
 }
 
-/** Adds the description and photo links a channel left out. Failing to fetch them is not an error. */
-async function withDetail(raw: RawListing): Promise<RawListing> {
-  if (!raw.detail) return raw;
-  try {
-    const found = await raw.detail();
-    if (!found) return raw;
-    return {
-      ...raw,
-      text: found.description ? `${raw.text}\n\n${found.description}` : raw.text,
-      photoUrls: [...new Set([...raw.photoUrls, ...found.photoUrls])],
-    };
-  } catch {
-    return raw;
-  }
-}
-
 /** Run database work as one transaction: it all lands, or (on an error or a cut-off) none of it does. */
 export function inTransaction<T>(deps: IntakeDeps, work: (tx: IntakeDeps) => Promise<T>): Promise<T> {
   return deps.db.transaction((tx) => work({ ...deps, db: tx as unknown as Db }));
 }
 
-export async function processRaw(deps: IntakeDeps, input: RawListing): Promise<IntakeOutcome> {
-  let raw = input;
+export async function processRaw(deps: IntakeDeps, raw: RawListing): Promise<IntakeOutcome> {
   try {
     const now = deps.now().toISOString();
     const known = await loadKnownListings(deps.db);
@@ -325,7 +308,6 @@ export async function processRaw(deps: IntakeDeps, input: RawListing): Promise<I
       if (await roommateLeadExists(deps.db, raw.url)) return outcome(raw, { status: "already_seen", note: "roommate lead" });
     }
 
-    raw = await withDetail(raw);
     const one = await stageExtract(deps, raw);
     if (!one.ok) {
       return outcome(raw, { status: one.kind === "rejected" ? "skipped" : "error", note: one.note });

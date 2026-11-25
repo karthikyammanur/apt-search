@@ -1,0 +1,15 @@
+{
+  "manifest_version": 3,
+  "name": "Apartment finder",
+  "version": "1.0.0",
+  "description": "Capture a page or visible group posts when you click.",
+  "permissions": ["activeTab", "scripting", "storage"],
+  "optional_host_permissions": [
+    "https://*/*",
+    "http://localhost/*",
+    "http://127.0.0.1/*",
+    "http://[::1]/*"
+  ],
+  "action": { "default_popup": "popup.html" },
+  "options_page": "options.html"
+}

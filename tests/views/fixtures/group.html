@@ -1,0 +1,42 @@
+<!doctype html>
+<html>
+  <head>
+    <title>Sample housing group</title>
+    <style>
+      body {
+        margin: 0;
+      }
+      article {
+        height: 140px;
+      }
+      .offscreen {
+        position: absolute;
+        top: 2000px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Sample housing group</h1>
+    <article role="article">
+      <h2><a href="/profile.php?id=100">Sample Person</a></h2>
+      <a href="/groups/sample/posts/101/">Today</a>
+      <p>Furnished room, private bath, available January.</p>
+      <img src="https://example.com/room.jpg" alt="Room" width="60" height="60" />
+      <div role="article">Nested comment, not another post</div>
+    </article>
+    <article role="article">
+      <h3><a href="/sample-person">Example Person</a></h3>
+      <a href="/groups/sample/permalink/102/">Yesterday</a>
+      <p>Looking for a roommate to share a two-bedroom.</p>
+    </article>
+    <article role="article"><p>Suggested content without a permalink</p></article>
+    <article role="article" class="offscreen">
+      <a href="/groups/sample/posts/103/">Earlier</a>
+      <p>This post is below the viewport.</p>
+    </article>
+    <article role="article" style="display: none">
+      <a href="/groups/sample/posts/104/">Hidden</a>
+      <p>Hidden text</p>
+    </article>
+  </body>
+</html>

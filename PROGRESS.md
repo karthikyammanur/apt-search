@@ -787,3 +787,123 @@ Hand check against the same database: the three passing listings cost 165000, 20
 2. The fake model and its stubs ship in the server bundle (`ai/test`), switched off unless `AGENT_FAKE_MODEL=1` with a local database; the seed route also needs an `e2e.db` file. Never set the flag on Vercel.
 3. On Windows the e2e web server can outlive a run. A run started right after another can hit `EADDRINUSE` on port 3100 and test a stale server, so wait a few seconds between runs.
 4. Listing links in chat point at `/listing/[id]`, which step 7 builds.
+
+## 2026-11-24, step 7, Codex (in progress)
+
+Branch: `step-7-screens`. Step 7 stays Failing. No completion commit yet.
+
+Implemented the six database-backed screens, authenticated view routes, direct browser photos with fallback, shortlist actions, comparison, requirement filters, sources and paste action, settings writes, and the MapLibre map. Added the approved map query and query export, removed the placeholder home page, and installed only `maplibre-gl` as a direct dependency. Added a Manifest V3 extension with local options, click-only capture and visible-post parsing, plus its build script and network guard. No files from step 6 were edited. The pre-existing untracked prompt file was left alone.
+
+Evidence collected:
+
+```
+npm.cmd run check
+Test Files 42 passed (42)
+Tests 693 passed | 1 skipped (694)
+
+npm.cmd run build
+Compiled successfully; all six screen routes present.
+
+npm.cmd run test:e2e
+3 passed, 2 failed: demo seeding overlapped the login test; the shortlist test initially assumed a demo listing was not already shortlisted.
+
+npm.cmd run test:e2e -- --workers=1
+5 passed (25.9s), after correcting the shortlist test's initial-state assumption.
+
+node extension/build.mjs
+Extension built in extension/dist.
+
+node tests/views/check-extension.mjs
+Unpacked extension loaded in Chromium.
+Extension-origin request outcome: Failed to fetch
+App preflight status: 204; allow-origin: missing; allow-headers: missing
+```
+
+Tests use fictional demo data, saved anonymised HTML, a fake office point and intercepted browser requests. E2E geocoding is stopped at the throwaway database's provider-cache boundary. The extension diagnostic used a local sample page and a deliberately invalid sample token. No real SUPost capture has been attempted. npm reported eight moderate dependency vulnerabilities; no unrelated dependency updates were made.
+
+Open blockers requiring scope approval:
+
+1. `src/app/api/capture/route.ts` needs a narrow CORS preflight and response-header change for the extension's JSON POST with X-Capture-Token. With no host permissions, Chromium blocks the current request. Token authentication must remain unchanged. This was verified with the actual unpacked extension against a local production server.
+2. `playwright.config.ts` needs demo seeding before the test server accepts requests, rather than seeding in the screens test while the login test runs in parallel. The default parallel suite is not yet reliable; serial execution passes.
+
+Stopped edits under AGENTS.md rule 7. Settings shows only fields supported by the existing schema; weights are read-only in this screen. No status was flipped and no real office coordinates were recorded in tests or logs. Temporary diagnostic server was bounded to four minutes and has exited.
+
+## 2026-11-24, step 7, Codex (completion)
+
+Branch: `step-7-screens`. The earlier CORS proposal was superseded by the user's extension-only design. `src/app/api/capture/route.ts` is unchanged.
+
+### Changed
+
+- Built Listings, Listing detail, Compare, Requirements, Sources and Settings from the shared query layer, with authenticated pages and server actions, the existing header and theme tokens, and the 760 px layout. Added the list/map toggle, numbered MapLibre pins, the office marker and stored Caltrain stations. Photos load directly in the browser, with a placeholder and original-post link on failure. Detail pages expose stored costs with provenance, requirement reasons, route and schedule labels, nearby places, draft copy, shortlist and rejection actions.
+- Built the Manifest V3 extension and a small TypeScript build script. The popup reads the active page or visible group posts only after user invocation. Its only network call is the configured app capture endpoint. Options requests optional host access only to that app origin, checks permission before capture, and removes old host access when changing apps. Facebook cannot be configured as the app origin and uses activeTab only. No background service, polling, scrolling or page clicking was added.
+- Added demo-backed component tests, anonymised group-parser fixtures and browser tests, capture shape and permission tests, the extension network guard, and phone/desktop E2E coverage. The banned-host exception applies only to extension code; the new guard checks its sole network call and configured destination. Browser tests stop server-side geocoding at the provider cache boundary and do not use live API quota.
+- Added the approved Playwright global setup to seed the throwaway database before tests and set one worker. A bounded SQLite busy timeout handles file-lock handoff. No webServer environment line was edited, so step 6's AGENT_FAKE_MODEL addition remains separate.
+
+### Approved out-of-step edits
+
+- Deleted `src/app/page.tsx`, the old placeholder replaced by `(views)/page.tsx`.
+- Added only `src/lib/queries/map.ts` and its export in `src/lib/queries/index.ts`. No other query file changed. The map read checks login before geocoding the office through the cached provider and reading station points. Tests use a fake office point.
+- Added `maplibre-gl` to `package.json` and the npm lockfile because the requested map needs its renderer. No other direct dependency was added.
+- Changed only two lines of configuration in `playwright.config.ts`: `globalSetup` and `workers: 1`. The setup implementation lives under the step-owned `tests/views/` directory.
+- The extension's app-origin permission design was explicitly approved in the follow-up. The capture route was not edited and no CORS headers were added.
+
+### Verification evidence
+
+```
+$ npm.cmd run check
+Test Files 42 passed (42)
+Tests 695 passed | 1 skipped (696)
+
+$ npm.cmd run test:e2e
+Running 5 tests using 1 worker
+all screens fit at 1280px: passed
+all screens fit at 390px: passed
+bucket tabs, shortlist, map, capture reminder: passed
+login and login rate limit: passed
+5 passed (43.4s)
+
+$ npm.cmd run build
+Compiled successfully in 6.6s
+Finished TypeScript in 4.9s
+Routes: /, /listing/[id], /compare, /requirements, /leads, /settings
+
+$ node extension/build.mjs
+Extension built in extension/dist. Load that folder unpacked in Chrome.
+
+$ node tests/views/live-capture.mjs
+Unpacked extension loaded in Chrome.
+Rebuilt extension reloaded after Chrome restart.
+Granted app hosts: ["http://localhost:3120/*"]
+
+$ node --import tsx tests/views/verify-live.ts
+Database evidence: 1 SUPost extension listing; successful extension run recorded.
+
+$ git diff --check
+No whitespace errors.
+```
+
+The real capture ran against `data/step7-live.db`, an ignored isolated database containing example settings, with an ephemeral token. The user clicked Capture this page on a real SUPost listing because both native UI tools failed to attach to Chrome for Testing. The stored URL was verified as a SUPost post, and the database contains the new listing and successful extension run. Chrome action-popup responses were not surfaced to the original Playwright network watcher, so its wait timed out after the successful write. The live verifier now checks the authoritative database instead. The temporary browser and app closed after the diagnostic ended. No real office coordinates or capture token were printed or committed.
+
+### Limits
+
+- Settings exposes the fields supported by the existing settings schema; weights are shown read-only with a link to chat for changes. No unsupported arrival-time or target-budget column was invented.
+- Facebook markup can change. Posts without visible text or a stable permalink are skipped. The parser is tested against saved anonymised HTML; a real Facebook capture was not part of this verification.
+- The existing AI SDK deprecation warning comes from a compatibility fixture. npm reported eight moderate dependency vulnerabilities during the requested MapLibre install; unrelated upgrades were not made.
+- Only step 7's status is changed. The pre-existing untracked `prompts/step-7-screens.md` is excluded from the commit.
+
+## 2026-11-24, merge step-7-screens into main, Claude Code
+
+### Changed
+- Conflicts: kept both PROGRESS entries; TASKS shows steps 6 and 7 as Passing (each branch's own flip). `playwright.config.ts` keeps `AGENT_FAKE_MODEL`, step 7's `globalSetup` and one `workers: 1`. `package.json` keeps `maplibre-gl`; `package-lock.json` regenerated with `npm install`.
+- `src/db/demo.ts`: a reset seed also clears the demo tables' `sqlite_sequence` rows, so ids restart at 1. Before this, chat.spec's reseed moved listing ids to 13+ and screens.spec's `/listing/1` failed.
+- `tests/e2e/screens.spec.ts`: reseeds through `POST /api/chat/e2e-seed` in `beforeAll`, because chat.spec adds a pasted listing (Needs info 5, not 4).
+- Both seeders use `data/e2e.db`. globalSetup finishes before any test, the route writes through the server's connection, and `workers: 1` runs specs one at a time, so there is never a second concurrent writer.
+
+### Commands
+- `npm run check`: 45 files, 726 tests passed.
+- `npm run test:e2e`: 7 passed.
+- `npm run build`: succeeded (stale `.next` removed first; its types still referenced the deleted `src/app/page.tsx`).
+
+### Open risks
+1. `src/db/demo.ts` and `tests/e2e/screens.spec.ts` belong to steps 6a and 7; edited during the merge with approval.
+2. Step 7's PROGRESS entry still says "in progress, stays Failing" while TASKS marks it Passing.

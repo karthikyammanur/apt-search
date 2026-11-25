@@ -8,6 +8,7 @@
 
 import { readFileSync } from "node:fs";
 import path from "node:path";
+import { getTableName, sql } from "drizzle-orm";
 import { SOFT_FACTORS, STARTING_WEIGHT } from "./defaults";
 import type { Db } from "./index";
 import {
@@ -486,10 +487,19 @@ export type DemoSeedResult = {
 
 const hoursBefore = (now: Date, hours: number) => new Date(now.getTime() - hours * 3_600_000).toISOString();
 
-/** Delete every row the demo writes, so a reset starts from empty. */
+/**
+ * Delete every row the demo writes, so a reset starts from empty. The AUTOINCREMENT counters
+ * are reset too, so a reset seed always gives the same ids (the e2e specs reseed between files).
+ */
 async function clearDemoTables(db: Db): Promise<void> {
-  for (const table of [chatMessages, feedbackEvents, photos, roommates, factsTable, enrichment, listings, roommateLeads, channelRuns, transitStops, preferences, settingsTable]) {
+  const tables = [chatMessages, feedbackEvents, photos, roommates, factsTable, enrichment, listings, roommateLeads, channelRuns, transitStops, preferences, settingsTable];
+  for (const table of tables) {
     await db.delete(table);
+  }
+  const hasSequence = await db.all(sql`SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'sqlite_sequence'`);
+  if (hasSequence.length === 0) return;
+  for (const table of tables) {
+    await db.run(sql`DELETE FROM sqlite_sequence WHERE name = ${getTableName(table)}`);
   }
 }
 

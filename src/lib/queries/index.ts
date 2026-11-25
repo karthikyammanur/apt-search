@@ -40,3 +40,4 @@ export {
   type StoredChatMessage,
 } from "./chat";
 export type { FactRow, QueryOptions } from "./shared";
+export { getMapPoints, type MapPoints } from "./map";

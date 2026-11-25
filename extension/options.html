@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Apartment finder options</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <main>
+      <h1>Apartment finder</h1>
+      <form>
+        <label for="app-url">App URL</label
+        ><input id="app-url" type="url" required placeholder="http://localhost:3000" /><label
+          for="token"
+          >Capture token</label
+        ><input id="token" type="password" required minlength="16" autocomplete="off" /><button>
+          Save
+        </button>
+      </form>
+      <p id="status" role="status"></p>
+    </main>
+    <script type="module" src="options.js"></script>
+  </body>
+</html>

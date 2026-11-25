@@ -14,7 +14,7 @@ describe("guard: no tool can send, email, reply, pay or purchase", () => {
     const names = toolNames(mod.toolRegistry);
     expect(names.length, "toolRegistry has no tools").toBeGreaterThan(0);
     expect(findForbiddenToolNames(names)).toEqual([]);
-  });
+  }, 30_000); // the first import loads the whole agent graph and can exceed 5s on a busy machine
 
   it("detector flags forbidden names and reads both registry shapes", () => {
     expect(findForbiddenToolNames(["get_shortlist", "record_feedback"])).toEqual([]);

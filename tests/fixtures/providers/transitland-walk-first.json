@@ -1,0 +1,79 @@
+{
+  "plan": {
+    "itineraries": [
+      {
+        "duration": 1808,
+        "legs": [
+          {
+            "mode": "WALK",
+            "duration": 1808,
+            "from": {
+              "name": "",
+              "lat": 37.4419,
+              "lon": -122.1608
+            },
+            "to": {
+              "name": "",
+              "lat": 37.4419,
+              "lon": -122.143
+            }
+          }
+        ]
+      },
+      {
+        "duration": 853,
+        "legs": [
+          {
+            "mode": "WALK",
+            "duration": 429,
+            "from": {
+              "name": "",
+              "lat": 37.4419,
+              "lon": -122.1608
+            },
+            "to": {
+              "name": "Hamilton & Ramona",
+              "lat": 37.44464,
+              "lon": -122.16072,
+              "stopId": "61568"
+            }
+          },
+          {
+            "mode": "BUS",
+            "duration": 377,
+            "routeShortName": "21",
+            "routeLongName": "Stanford Shopping Ctr - Santa Clara TC",
+            "agencyName": "VTA",
+            "from": {
+              "name": "Hamilton & Ramona",
+              "lat": 37.44464,
+              "lon": -122.16072,
+              "stopId": "61568"
+            },
+            "to": {
+              "name": "Middlefield & Embarcadero",
+              "lat": 37.44182,
+              "lon": -122.14278,
+              "stopId": "61575"
+            }
+          },
+          {
+            "mode": "WALK",
+            "duration": 47,
+            "from": {
+              "name": "Middlefield & Embarcadero",
+              "lat": 37.44182,
+              "lon": -122.14278,
+              "stopId": "61575"
+            },
+            "to": {
+              "name": "",
+              "lat": 37.4419,
+              "lon": -122.143
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

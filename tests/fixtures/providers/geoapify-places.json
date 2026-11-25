@@ -1,0 +1,37 @@
+{
+  "features": [
+    {
+      "properties": {
+        "place_id": "51a5f716d54d895ec0594164c3bf8cb64240f00102f9019bfb93090000000092030b436f756e7472792053756e",
+        "name": "Country Sun",
+        "categories": [
+          "building",
+          "building.commercial",
+          "commercial",
+          "commercial.supermarket",
+          "wheelchair",
+          "wheelchair.yes"
+        ],
+        "lat": 37.4261728,
+        "lon": -122.1453804
+      }
+    },
+    {
+      "properties": {
+        "place_id": "51941988d242895ec0590d3d9f308bb64240f00102f9015f21900900000000920306556d6520476f",
+        "name": "Ume Go",
+        "categories": [
+          "building",
+          "building.catering",
+          "building.commercial",
+          "catering",
+          "catering.cafe",
+          "catering.cafe.bubble_tea",
+          "catering.cafe.tea"
+        ],
+        "lat": 37.4261307,
+        "lon": -122.1447183
+      }
+    }
+  ]
+}

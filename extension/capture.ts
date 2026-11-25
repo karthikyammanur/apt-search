@@ -70,5 +70,8 @@ export async function capture(
   )
     throw new Error("Unexpected app response.");
   const rows = result.results as { status: string }[];
-  return `${rows.filter((r) => r.status === "stored").length} listings added, ${rows.filter((r) => r.status === "roommate_lead").length} roommate leads, ${rows.filter((r) => r.status !== "stored" && r.status !== "roommate_lead").length} skipped or failed.`;
+  // Posts the app had no time to process are saved and finished by its next scheduled run.
+  const pending = "pending" in result && typeof result.pending === "number" ? result.pending : 0;
+  const summary = `${rows.filter((r) => r.status === "stored").length} listings added, ${rows.filter((r) => r.status === "roommate_lead").length} roommate leads, ${rows.filter((r) => r.status !== "stored" && r.status !== "roommate_lead").length} skipped or failed.`;
+  return pending > 0 ? `${summary} ${pending} saved, will finish processing later.` : summary;
 }

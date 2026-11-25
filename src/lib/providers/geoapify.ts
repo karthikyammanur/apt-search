@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { cachedFetch, failure, mapped, query, TTL, type ClientOptions } from "./core";
-import { minutes, routeInput, seconds, type Coordinates, type Route } from "./types";
+import { areaInput, minutes, routeInput, seconds, type Coordinates, type Route } from "./types";
 
 export const geoapifyGeocodeSchema = z.object({
   results: z.array(
@@ -21,6 +21,24 @@ export const geoapifyRouteSchema = z.object({
     }),
   ),
 });
+export const geoapifyPlacesSchema = z.object({
+  features: z.array(
+    z.object({
+      properties: z.object({
+        place_id: z.string(),
+        name: z.string().optional(),
+        categories: z.array(z.string()).default([]),
+        lat: z.number().min(-90).max(90),
+        lon: z.number().min(-180).max(180),
+      }),
+    }),
+  ),
+});
+/** One nearby place, with Geoapify's own category names (such as "commercial.supermarket"). */
+export type GeoapifyPlace = { id: string; name: string | null; lat: number; lng: number; categories: string[] };
+/** Supermarkets, fitness centres and cafes: the three place kinds the app looks for. */
+export const GEOAPIFY_PLACE_CATEGORIES = "commercial.supermarket,sport.fitness,catering.cafe";
+
 export function createGeoapify(options: ClientOptions = {}) {
   const transport = options.transport ?? cachedFetch;
   const key = () => (options.key ?? process.env.GEOAPIFY_API_KEY ?? "").trim();
@@ -47,6 +65,34 @@ export function createGeoapify(options: ClientOptions = {}) {
           const first = data.results[0];
           return first && { lat: first.lat, lng: first.lon, address: first.formatted };
         },
+      );
+    },
+    places(center: Coordinates, radiusMeters = 1500) {
+      if (!key()) return Promise.resolve(failure("disabled"));
+      if (!areaInput.safeParse({ center, radiusMeters }).success) return Promise.resolve(failure("bad_response"));
+      return mapped(
+        transport(
+          "geoapify",
+          {
+            url: query("https://api.geoapify.com/v2/places", {
+              categories: GEOAPIFY_PLACE_CATEGORIES,
+              filter: `circle:${center.lng},${center.lat},${radiusMeters}`,
+              bias: `proximity:${center.lng},${center.lat}`,
+              limit: 60,
+              apiKey: key(),
+            }),
+            schema: geoapifyPlacesSchema,
+          },
+          TTL.pois,
+        ),
+        (data): GeoapifyPlace[] =>
+          data.features.map(({ properties: p }) => ({
+            id: p.place_id,
+            name: p.name ?? null,
+            lat: p.lat,
+            lng: p.lon,
+            categories: p.categories,
+          })),
       );
     },
     route(from: Coordinates, to: Coordinates, mode: "WALK" | "BICYCLE") {

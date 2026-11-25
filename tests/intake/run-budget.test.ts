@@ -94,7 +94,7 @@ describe("runAutomaticChannels with a budget", () => {
     expect(calls.transit).toBe(0);
   });
 
-  it("gives up on a post that outlasts the hard stop, defers the rest and still records the run", async () => {
+  it("gives up on a post that outlasts the hard stop, defers it and the rest, and still records the run", async () => {
     const { deps, db } = await makeDeps(FIXTURE_REPLIES);
     deps.geo = { ...deps.geo, transit: () => new Promise(() => {}) }; // a routing service that never answers
     const [summary] = await runAutomaticChannels(deps, {
@@ -102,11 +102,11 @@ describe("runAutomaticChannels with a budget", () => {
       budget: { ...BUDGET, stopWithinMs: 40 },
       clients: { rentcast: rentcast(records(3)) },
     });
-    expect(summary?.outcomes).toHaveLength(1);
-    expect(summary?.outcomes[0]).toMatchObject({ status: "error", note: expect.stringContaining("gave up") });
-    expect(summary?.deferred).toBe(2);
+    // The abandoned post is not counted as done: it is deferred with the two that never started.
+    expect(summary).toMatchObject({ seen: 3, newCount: 0, deferred: 3 });
+    expect(summary?.outcomes).toHaveLength(0);
     const [run] = await db.select().from(channelRuns);
-    expect(run?.error).toContain("deferred");
+    expect(run?.error).toBe("3 posts deferred to the next run (one took too long)");
   });
 
   it("without a budget the old per-channel limit is the only cap", async () => {

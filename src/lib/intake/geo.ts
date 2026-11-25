@@ -5,6 +5,7 @@ import {
   geocode as geocodeWithFallback,
   getTransitCommute,
   getWalkBike,
+  geoapify,
   google,
   googleMode,
   overpass,
@@ -25,12 +26,13 @@ export type Place = {
 
 export type Geo = {
   geocode(address: string): Promise<Result<{ lat: number; lng: number; address: string }>>;
-  transit(from: Coordinates, to: Coordinates, arriveBy: string): Promise<Result<Route>>;
+  /** `provider` says who routed it, so a free provider's answer can be treated with more care. */
+  transit(from: Coordinates, to: Coordinates, arriveBy: string): Promise<Result<Route & { provider?: string }>>;
   walkBike(from: Coordinates, to: Coordinates, mode: "WALK" | "BICYCLE"): Promise<Result<Route>>;
   places(center: Coordinates, radiusMeters: number): Promise<Result<Place[]>>;
 };
 
-type PlacesClients = Pick<{ google: typeof google; overpass: typeof overpass }, "google" | "overpass">;
+type PlacesClients = { google: typeof google; overpass: typeof overpass; geoapify: typeof geoapify };
 
 /** OpenStreetMap elements from Overpass, reduced to the three place kinds the app cares about. */
 async function overpassPlaces(
@@ -67,16 +69,40 @@ async function overpassPlaces(
   return { ok: true, data: mapped };
 }
 
+/** Geoapify Places, reduced to the same three kinds. */
+async function geoapifyPlaces(
+  client: PlacesClients["geoapify"],
+  center: Coordinates,
+  radiusMeters: number,
+): Promise<Result<Place[]>> {
+  const found = await client.places(center, radiusMeters);
+  if (!found.ok) return found;
+  const mapped: Place[] = [];
+  for (const place of found.data) {
+    const type = place.categories.includes("commercial.supermarket")
+      ? "grocery_store"
+      : place.categories.some((c) => c === "sport.fitness" || c.startsWith("sport.fitness."))
+        ? "gym"
+        : place.categories.includes("catering.cafe")
+          ? "cafe"
+          : null;
+    if (!type) continue;
+    mapped.push({ id: place.id, name: place.name ?? type.replace("_", " "), lat: place.lat, lng: place.lng, types: [type], rating: null });
+  }
+  return { ok: true, data: mapped };
+}
+
 /**
- * Nearby places. Which source goes first follows googleMode: Google first on a laptop, Overpass first
- * on a Vercel preview, and Overpass only on Vercel production (the Demo Key may not be used there).
+ * Nearby places, trying each source in turn until one answers:
+ *  - a laptop: Google, then Overpass (which already retries on a second server), then Geoapify Places;
+ *  - any Vercel deployment: Overpass, then Geoapify Places. Google's Demo Key may not be used there.
  */
-export function createPlaces(clients: PlacesClients = { google, overpass }, env: Record<string, string | undefined> = process.env) {
+export function createPlaces(clients: PlacesClients, env: Record<string, string | undefined> = process.env) {
   return async (center: Coordinates, radiusMeters: number): Promise<Result<Place[]>> => {
     const viaGoogle = () => clients.google.nearby(center, radiusMeters);
     const viaOverpass = () => overpassPlaces(clients.overpass, center, radiusMeters);
-    const mode = googleMode(env);
-    const order = mode === "primary" ? [viaGoogle, viaOverpass] : mode === "fallback" ? [viaOverpass, viaGoogle] : [viaOverpass];
+    const viaGeoapify = () => geoapifyPlaces(clients.geoapify, center, radiusMeters);
+    const order = googleMode(env) === "primary" ? [viaGoogle, viaOverpass, viaGeoapify] : [viaOverpass, viaGeoapify];
     let last: Result<Place[]> = { ok: false, error: "disabled" };
     for (const attempt of order) {
       last = await attempt();
@@ -86,7 +112,7 @@ export function createPlaces(clients: PlacesClients = { google, overpass }, env:
   };
 }
 
-const places = createPlaces();
+const places = createPlaces({ google, overpass, geoapify });
 
 export const liveGeo: Geo = {
   geocode: (address) => geocodeWithFallback(address),

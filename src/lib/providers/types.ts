@@ -15,6 +15,8 @@ export const routeInput = z
     arriveBy: z.iso.datetime({ offset: true }).optional(),
   })
   .refine((v) => v.mode !== "TRANSIT" || v.arriveBy !== undefined);
+/** Where a transit step boards or gets off, when the provider says. Any part may be null (Unknown). */
+export type StopPoint = { stopId: string | null; lat: number | null; lng: number | null };
 export type Route = {
   minutes: number;
   steps: {
@@ -26,6 +28,9 @@ export type Route = {
     /** Where I board and get off, such as "Palo Alto Caltrain" (needed for Caltrain zones). */
     departureStop?: string | null;
     arrivalStop?: string | null;
+    /** Ids and coordinates of those stops, used to find the nearest station in the stop table. */
+    departurePoint?: StopPoint | null;
+    arrivalPoint?: StopPoint | null;
   }[];
 };
 export const seconds = z.number().finite().nonnegative();

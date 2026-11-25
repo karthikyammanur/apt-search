@@ -1,4 +1,4 @@
-// The Google Maps Demo Key's terms forbid production use, so on Vercel production Google is never
+// The Google Maps Demo Key's terms forbid production use, so on any Vercel deployment Google is never
 // called. These tests stub the clients and record which ones are asked, in order.
 
 import { describe, expect, it } from "vitest";
@@ -45,10 +45,10 @@ function stubs(calls: string[], opts: { google?: Result<never> | "ok"; free?: Re
 }
 
 describe("googleMode", () => {
-  it("is primary on a laptop and after a Vercel dev pull, fallback on preview, off on production", () => {
+  it("is primary on a laptop and after a Vercel dev pull, and off on every Vercel deployment", () => {
     expect(googleMode({})).toBe("primary");
     expect(googleMode({ VERCEL: "1", VERCEL_ENV: "development" })).toBe("primary");
-    expect(googleMode(PREVIEW)).toBe("fallback");
+    expect(googleMode(PREVIEW)).toBe("off");
     expect(googleMode(PRODUCTION)).toBe("off");
   });
 
@@ -58,29 +58,21 @@ describe("googleMode", () => {
 });
 
 describe("transit, walk, bike and geocode order", () => {
-  it("production: the free providers only, Google is never called, even when they fail", async () => {
+  it.each([
+    ["production", PRODUCTION],
+    ["preview", PREVIEW],
+  ])("%s: the free providers only, Google is never called, even when they fail", async (_name, env) => {
     const calls: string[] = [];
-    const ok = createFallbacks(stubs(calls), PRODUCTION);
+    const ok = createFallbacks(stubs(calls), env);
     expect(await ok.getTransitCommute(from, to, arriveBy)).toMatchObject({ ok: true, data: { minutes: 20, provider: "transitland" } });
     expect(await ok.getWalkBike(from, to, "WALK")).toMatchObject({ ok: true, data: { minutes: 30, provider: "geoapify" } });
     expect(await ok.geocode("Example")).toMatchObject({ ok: true, data: { lat: 3, provider: "geoapify" } });
 
-    const failing = createFallbacks(stubs(calls, { free: down }), PRODUCTION);
+    const failing = createFallbacks(stubs(calls, { free: down }), env);
     expect(await failing.getTransitCommute(from, to, arriveBy)).toEqual({ ok: false, error: "network" });
     expect(await failing.getWalkBike(from, to, "BICYCLE")).toEqual({ ok: false, error: "network" });
     expect(await failing.geocode("Example")).toEqual({ ok: false, error: "network" });
     expect(calls).not.toContain("google");
-  });
-
-  it("preview: the free providers first, Google only when they fail", async () => {
-    const calls: string[] = [];
-    await createFallbacks(stubs(calls), PREVIEW).getTransitCommute(from, to, arriveBy);
-    expect(calls).toEqual(["transitland"]);
-
-    calls.length = 0;
-    const result = await createFallbacks(stubs(calls, { free: down }), PREVIEW).getTransitCommute(from, to, arriveBy);
-    expect(calls).toEqual(["transitland", "google"]);
-    expect(result).toMatchObject({ ok: true, data: { minutes: 10, provider: "google" } });
   });
 
   it("laptop: Google first, the free providers as backup (unchanged)", async () => {
@@ -97,8 +89,16 @@ describe("transit, walk, bike and geocode order", () => {
 
 describe("nearby places order", () => {
   const place = { type: "node" as const, id: 1, lat: 37.4, lon: -122.1, tags: { shop: "supermarket", name: "Market" } };
-  const clients = (calls: string[], overpassOk: boolean) =>
-    ({
+  const geoapifyPlace = (categories: string[], name: string | null = "Geo") => ({
+    id: `p-${categories[0]}`,
+    name,
+    lat: 37.4,
+    lng: -122.1,
+    categories,
+  });
+
+  function clients(calls: string[], overpass: "ok" | "down", geoapify: "ok" | "down" = "ok") {
+    return {
       google: {
         nearby: () => {
           calls.push("google");
@@ -111,30 +111,74 @@ describe("nearby places order", () => {
       overpass: {
         nearby: () => {
           calls.push("overpass");
-          return Promise.resolve(overpassOk ? { ok: true, data: { version: 0.6, elements: [place] } } : down);
+          return Promise.resolve(overpass === "ok" ? { ok: true, data: { version: 0.6, elements: [place] } } : down);
         },
       },
-    }) as never;
+      geoapify: {
+        places: () => {
+          calls.push("geoapify");
+          return Promise.resolve(
+            geoapify === "ok"
+              ? {
+                  ok: true,
+                  data: [
+                    geoapifyPlace(["commercial", "commercial.supermarket"], "Geo Market"),
+                    geoapifyPlace(["sport", "sport.fitness", "sport.fitness.fitness_centre"], "Geo Gym"),
+                    geoapifyPlace(["catering", "catering.cafe"], null),
+                    geoapifyPlace(["commercial.clothing"], "Not Wanted"),
+                  ],
+                }
+              : down,
+          );
+        },
+      },
+    } as never;
+  }
 
-  it("production: Overpass only, mapped to the app's place kinds, never Google", async () => {
+  it.each([
+    ["production", PRODUCTION],
+    ["preview", PREVIEW],
+  ])("%s: Overpass first, mapped to the app's place kinds, and never Google", async (_name, env) => {
     const calls: string[] = [];
-    const found = await createPlaces(clients(calls, true), PRODUCTION)(from, 1500);
+    const found = await createPlaces(clients(calls, "ok"), env)(from, 1500);
     expect(found).toEqual({
       ok: true,
       data: [{ id: "node/1", name: "Market", lat: 37.4, lng: -122.1, types: ["grocery_store"], rating: null }],
     });
-    const failed = await createPlaces(clients(calls, false), PRODUCTION)(from, 1500);
-    expect(failed).toEqual({ ok: false, error: "network" });
-    expect(calls).toEqual(["overpass", "overpass"]);
+    expect(calls).toEqual(["overpass"]);
   });
 
-  it("preview: Overpass first, then Google; laptop: Google first, then Overpass", async () => {
-    const preview: string[] = [];
-    await createPlaces(clients(preview, false), PREVIEW)(from, 1500);
-    expect(preview).toEqual(["overpass", "google"]);
+  it("falls back to Geoapify Places when Overpass fails, and maps its categories", async () => {
+    const calls: string[] = [];
+    const found = await createPlaces(clients(calls, "down"), PRODUCTION)(from, 1500);
+    expect(calls).toEqual(["overpass", "geoapify"]);
+    expect(found).toEqual({
+      ok: true,
+      data: [
+        { id: "p-commercial", name: "Geo Market", lat: 37.4, lng: -122.1, types: ["grocery_store"], rating: null },
+        { id: "p-sport", name: "Geo Gym", lat: 37.4, lng: -122.1, types: ["gym"], rating: null },
+        { id: "p-catering", name: "cafe", lat: 37.4, lng: -122.1, types: ["cafe"], rating: null },
+      ],
+    });
+  });
 
-    const laptop: string[] = [];
-    await createPlaces(clients(laptop, true), {})(from, 1500);
-    expect(laptop).toEqual(["google"]);
+  it("is an error only when Overpass and Geoapify both fail, and Google is still not tried in production", async () => {
+    const calls: string[] = [];
+    const found = await createPlaces(clients(calls, "down", "down"), PRODUCTION)(from, 1500);
+    expect(found).toEqual({ ok: false, error: "network" });
+    expect(calls).toEqual(["overpass", "geoapify"]);
+  });
+
+  it("laptop: Google first, then Overpass, then Geoapify", async () => {
+    const first: string[] = [];
+    await createPlaces(clients(first, "ok"), {})(from, 1500);
+    expect(first).toEqual(["google"]);
+
+    // Make Google fail by stubbing it down.
+    const calls: string[] = [];
+    const base = clients(calls, "down") as unknown as Record<string, unknown>;
+    const withGoogleDown = { ...base, google: { nearby: () => (calls.push("google"), Promise.resolve(down)) } } as never;
+    await createPlaces(withGoogleDown, {})(from, 1500);
+    expect(calls).toEqual(["google", "overpass", "geoapify"]);
   });
 });

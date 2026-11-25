@@ -1,0 +1,95 @@
+{
+  "plan": {
+    "itineraries": [
+      {
+        "duration": 1664,
+        "legs": [
+          {
+            "mode": "WALK",
+            "duration": 297,
+            "from": {
+              "name": "",
+              "lat": 37.4528,
+              "lon": -122.1817
+            },
+            "to": {
+              "name": "Menlo Park Caltrain Station Southbound",
+              "lat": 37.45475,
+              "lon": -122.18241,
+              "stopId": "70162"
+            }
+          },
+          {
+            "mode": "RAIL",
+            "duration": 180,
+            "routeShortName": "Local Weekday",
+            "routeLongName": "",
+            "agencyName": "Caltrain",
+            "from": {
+              "name": "Menlo Park Caltrain Station Southbound",
+              "lat": 37.45475,
+              "lon": -122.18241,
+              "stopId": "70162"
+            },
+            "to": {
+              "name": "Palo Alto Caltrain Station Southbound",
+              "lat": 37.4434,
+              "lon": -122.1647,
+              "stopId": "70172"
+            }
+          },
+          {
+            "mode": "WALK",
+            "duration": 163,
+            "from": {
+              "name": "Palo Alto Caltrain Station Southbound",
+              "lat": 37.4434,
+              "lon": -122.1647,
+              "stopId": "70172"
+            },
+            "to": {
+              "name": "Palo Alto Transit Center (Bay 5)",
+              "lat": 37.44425,
+              "lon": -122.16679,
+              "stopId": "64836"
+            }
+          },
+          {
+            "mode": "BUS",
+            "duration": 480,
+            "routeShortName": "21",
+            "routeLongName": "Stanford Shopping Ctr - Santa Clara TC",
+            "agencyName": "VTA",
+            "from": {
+              "name": "Palo Alto Transit Center (Bay 5)",
+              "lat": 37.44425,
+              "lon": -122.16679,
+              "stopId": "64836"
+            },
+            "to": {
+              "name": "Middlefield & Embarcadero",
+              "lat": 37.44182,
+              "lon": -122.14278,
+              "stopId": "61575"
+            }
+          },
+          {
+            "mode": "WALK",
+            "duration": 47,
+            "from": {
+              "name": "Middlefield & Embarcadero",
+              "lat": 37.44182,
+              "lon": -122.14278,
+              "stopId": "61575"
+            },
+            "to": {
+              "name": "",
+              "lat": 37.4419,
+              "lon": -122.143
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

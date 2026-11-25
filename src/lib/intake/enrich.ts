@@ -9,8 +9,9 @@
 import { transitStops } from "@/db/schema";
 import type { Db } from "@/db";
 import { nearestStops } from "@/lib/transit";
-import type { ListingFactValues } from "@/lib/domain";
-import type { Route } from "@/lib/providers";
+import { routedByNote, type ListingFactValues } from "@/lib/domain";
+import type { Route, StopPoint } from "@/lib/providers";
+import { caltrainZone } from "@/lib/regions";
 import type { Geo, Place } from "./geo";
 import type { FactWrite } from "./facts";
 
@@ -84,13 +85,31 @@ export function stationName(name: string | null | undefined): string | null {
   return cleaned || null;
 }
 
+/** How near a boarding or alighting point must be to a station in the stop table to count as that station. */
+export const STATION_MATCH_METERS = 300;
+
+/**
+ * The Caltrain station a routing provider's boarding or alighting point stands for. Providers that
+ * name no stops (or name them differently) still give a stop id or coordinates, so match the stop id
+ * against the stop table first, then the nearest station within 300 m. Only stations the fare zone
+ * table knows can match, so an unlisted station stays Unknown rather than guessed.
+ */
+export function caltrainStationFor(point: StopPoint | null | undefined, stops: readonly StopRow[]): string | null {
+  if (!point) return null;
+  const stations = stops.filter((stop) => stop.modes.includes("rail") && caltrainZone(stop.name) !== null);
+  const byId = point.stopId ? stations.find((stop) => stop.stopId === point.stopId) : undefined;
+  if (byId) return byId.name;
+  if (point.lat === null || point.lng === null) return null;
+  return nearestStops(point.lat, point.lng, STATION_MATCH_METERS, stations)[0]?.name ?? null;
+}
+
 /**
  * Turn the routing provider's steps into legs. A transit step's agency is the provider's agency
  * name when it gives one, else inferred from the line name. Boarding and alighting stop names
- * come from the provider, so a Caltrain fare zone can be priced; without them they stay null and
- * the zone stays Unknown rather than guessed.
+ * come from the provider, so a Caltrain fare zone can be priced; for a Caltrain leg the stop table
+ * is asked first (see caltrainStationFor). Without a name the zone stays Unknown rather than guessed.
  */
-export function routeToLegs(route: Route): ListingFactValues["commuteRoute"] {
+export function routeToLegs(route: Route, stops: readonly StopRow[] = []): ListingFactValues["commuteRoute"] {
   type Leg = ListingFactValues["commuteRoute"]["legs"][number];
   const legs = route.steps.flatMap((step): Leg[] => {
     const mode =
@@ -105,7 +124,15 @@ export function routeToLegs(route: Route): ListingFactValues["commuteRoute"] {
     if (mode !== "transit") return [{ mode, agency: null, from: null, to: null }];
     const named = (text: string | null | undefined) => AGENCY_WORDS.find(([pattern]) => pattern.test(text ?? ""))?.[1] ?? null;
     const agency = named(step.agencyName) ?? named(step.lineName);
-    return [{ mode, agency, from: stationName(step.departureStop), to: stationName(step.arrivalStop) }];
+    const caltrain = agency === "caltrain";
+    return [
+      {
+        mode,
+        agency,
+        from: (caltrain ? caltrainStationFor(step.departurePoint, stops) : null) ?? stationName(step.departureStop),
+        to: (caltrain ? caltrainStationFor(step.arrivalPoint, stops) : null) ?? stationName(step.arrivalStop),
+      },
+    ];
   });
   return { legs };
 }
@@ -190,8 +217,8 @@ export async function enrichListing(geo: Geo, input: EnrichInput): Promise<Enric
   if (transit.ok) {
     columns.commuteTransitMin = transit.data.minutes;
     columns.routeSteps = transit.data.steps;
-    facts.push({ field: "commuteMinutes", value: transit.data.minutes, provenance: "api" });
-    facts.push({ field: "commuteRoute", value: routeToLegs(transit.data), provenance: "api" });
+    facts.push({ field: "commuteMinutes", value: transit.data.minutes, provenance: "api", note: routedByNote(transit.data.provider) });
+    facts.push({ field: "commuteRoute", value: routeToLegs(transit.data, input.stops), provenance: "api" });
   } else {
     notes.push(`transit commute: ${transit.error}`);
   }

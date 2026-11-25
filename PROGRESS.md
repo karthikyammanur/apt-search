@@ -958,3 +958,35 @@ No step in TASKS.md covers deployment, so no status was changed. Work was done o
 3. Public Overpass failed on 2 of 6 calls; places show Unknown when it does.
 4. `/api/capture` also has `maxDuration = 300` with no budget. One post at a time, but a slow model chain could reach the limit.
 5. This work edited files owned by steps 1, 2 and 5 (`src/db/`, `src/lib/providers/fallbacks.ts`, `src/lib/intake/`).
+
+## 2026-11-24, deploy-prep fix round, Claude Code
+
+No TASKS.md status changed. Work was done on the user's explicit request; nothing was deployed and no `.env*` file was read.
+
+### Changed
+1. Caltrain zones without Google: `routeToLegs(route, stops)` in `src/lib/intake/enrich.ts` maps each rail leg's boarding and alighting point to a Caltrain station in `transit_stops` (stop id first, else nearest within 300 m, `caltrainStationFor`) and prices the pass from those zones. The Transitland client (`src/lib/providers/transitland.ts`) now keeps agency name, stop names and stop points, and calls every non-walk, non-bicycle vehicle TRANSIT.
+2. The two trips 18 and 21 min off: not Transitland. The client took the first itinerary, and Transitland lists a walk-only itinerary beside the transit one, sometimes first. It now takes the quickest. Listing 2 went from 31 to 15 min (Google 13), listing 4 from 30 to 10 (Google 9).
+3. Commute margin: `checkCommute` (`src/lib/domain/filters.ts`) returns Unknown, "Commute close to the limit, check it on Google Maps", when the commute came from Transitland and is within 5 min of the cap. The provider is stored in a new `facts.note` ("Routed by Transitland").
+4. Places: Overpass, then Geoapify Places (`geoapify.places`, `createPlaces`), after Google on a laptop.
+5. Preview behaves like production: `googleMode` is `primary` or `off`, no fallback mode.
+6. `/api/capture` has `CAPTURE_BUDGET` (`src/lib/intake/budget.ts`). Posts that do not fit are saved in the new `pending_captures` table (migration 0003, `src/lib/intake/pending.ts`) and finished first by the next full cron run, 3 tries each. The extension shows "N saved, will finish processing later" (rebuild it with `node extension/build.mjs`).
+7. `.env.example`: removed OLLAMA_BASE_URL, TRAVELTIME_APP_ID, TRAVELTIME_API_KEY, ORS_API_KEY, HUD_API_TOKEN, ENABLE_APIFY, APIFY_TOKEN.
+- `docs/deploy.md` sections 1, 2, 6 and 7 updated. `scripts/compare-providers.ts` now prices passes through the real pass path and runs the production places chain.
+- Tests: `tests/domain/commute-margin.test.ts`, `tests/intake/{caltrain-stations,commute-provider,pending-capture}.test.ts`, `tests/providers/{transitland-itineraries,geoapify-places}.test.ts`, updated `google-policy`, `run-budget`, `tables`, `capture`. New recorded fixtures under `tests/fixtures/providers/`.
+
+### Comparison (6 demo listings, `npm run compare:providers`)
+- transit: median 0 min, largest gap 6, within 5 min on 5 of 6. walk: median +3, largest +6. bike: median +1, largest +6.
+- pass priced: Google 6, Transitland 6 of 6; same price on 5. Listing 5 differs (Transitland chose a quicker Caltrain route: 186 against 90).
+- places: 6 of 6 answered; Overpass 2, Geoapify Places 4. Geoapify found 0 gyms on all 4 listings it served.
+
+### Corrections to the previous entry
+The earlier "Caltrain zone priced 0 of 6" was too loose (it counted VTA routes), and Transitland's bus legs were being dropped, which priced some passes at 0. Both fixed. The "18 and 21 min" gaps were the itinerary bug, not Transitland.
+
+### Assumptions
+- Run `npm run db:migrate` on `data/dev.db` and on Turso before this version runs (migration 0003).
+
+### Open risks
+1. A post abandoned at the hard stop may be half stored and later show as already seen.
+2. Overpass fails often (4 of 6 here); the Geoapify fallback has no gyms, so a gym count reads 0 rather than Unknown.
+3. 4 of 6 free-provider commutes fall in the 25 to 35 min margin and show Unknown on the commute filter.
+4. Transitland can choose a different route than Google, which moves the pass price.

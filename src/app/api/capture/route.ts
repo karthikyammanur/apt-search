@@ -5,6 +5,8 @@
 import { createDeps } from "@/lib/intake/deps";
 import { CAPTURE_TOKEN_HEADER, MAX_BODY_CHARS, handleCapture } from "@/lib/intake/capture";
 
+// 300 s is the Vercel Hobby maximum. handleCapture stops starting posts well before that (CAPTURE_BUDGET)
+// and saves the rest as pending, so a long Facebook batch is never cut off halfway.
 export const maxDuration = 300;
 export const dynamic = "force-dynamic";
 

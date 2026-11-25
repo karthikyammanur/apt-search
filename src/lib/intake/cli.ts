@@ -43,7 +43,7 @@ async function main(): Promise<number> {
     return 1;
   }
 
-  const summaries = await runAutomaticChannels(deps, { channels, limit, force: process.argv.includes("--force") });
+  const summaries = await runAutomaticChannels(deps, { channels, pending: (arg("channel") ?? "all") === "all", limit, force: process.argv.includes("--force") });
   let failed = false;
   for (const summary of summaries) {
     console.log(`\n== ${summary.channel} ==`);

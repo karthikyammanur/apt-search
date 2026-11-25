@@ -7,17 +7,15 @@ import type { Coordinates } from "./types";
 type Env = Record<string, string | undefined>;
 
 /**
- * How Google's Maps Demo Key may be used. Its terms forbid production use, so on a Vercel production
- * deployment Google is never called. Everywhere else it is a normal part of the chain:
- *  - "primary":  a laptop (or a Vercel dev pull). Google first, the free providers as backup.
- *  - "fallback": a Vercel preview deployment. The free providers first, Google only if they fail.
- *  - "off":      a Vercel production deployment (or any deployment whose VERCEL_ENV is missing).
+ * How Google's Maps Demo Key may be used. Its terms forbid production use, so on any Vercel deployment
+ * (production or preview) Google is never called. The free providers are the only source there.
+ *  - "primary": a laptop, or a Vercel dev pull (VERCEL_ENV=development). Google first, the free providers as backup.
+ *  - "off":     every Vercel production or preview deployment, and any deployment whose VERCEL_ENV is missing.
  */
-export type GoogleMode = "primary" | "fallback" | "off";
+export type GoogleMode = "primary" | "off";
 
 export function googleMode(env: Env = process.env): GoogleMode {
-  if (!env.VERCEL || env.VERCEL_ENV === "development") return "primary";
-  return env.VERCEL_ENV === "preview" ? "fallback" : "off";
+  return !env.VERCEL || env.VERCEL_ENV === "development" ? "primary" : "off";
 }
 
 type Attempt<T, N extends string> = { name: N; run: () => Promise<Result<T>> };
@@ -33,11 +31,9 @@ async function firstOk<T, N extends string>(attempts: Attempt<T, N>[]): Promise<
   return failure(error);
 }
 
-/** Put Google first, last or nowhere, depending on the mode. The free providers keep their order. */
+/** Put Google first, or leave it out. The free providers keep their order. */
 export function orderByMode<G, O>(mode: GoogleMode, googleAttempt: G, others: O[]): (G | O)[] {
-  if (mode === "primary") return [googleAttempt, ...others];
-  if (mode === "fallback") return [...others, googleAttempt];
-  return others;
+  return mode === "primary" ? [googleAttempt, ...others] : others;
 }
 
 export function createFallbacks(clients = { google, transitland, geoapify }, env: Env = process.env) {

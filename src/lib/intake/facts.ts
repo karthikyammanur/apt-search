@@ -112,7 +112,7 @@ export async function loadFacts(db: Db, listingId: number): Promise<ListingFacts
       if (best === null) break;
       const parsed = FACT_SCHEMAS[field].safeParse(best.value);
       if (parsed.success) {
-        target[field] = { value: parsed.data, provenance: best.provenance, sourceUrl: best.sourceUrl };
+        target[field] = { value: parsed.data, provenance: best.provenance, sourceUrl: best.sourceUrl, note: best.note };
         break;
       }
       remaining.splice(remaining.indexOf(best), 1);
@@ -126,6 +126,8 @@ export type FactWrite = {
   value: unknown;
   provenance: Provenance;
   sourceUrl?: string | null;
+  /** Context for the value, such as who routed a commute. */
+  note?: string | null;
 };
 
 /** Upsert facts. One row per (listing, field, provenance), so a newer reading replaces an older. */
@@ -148,11 +150,12 @@ export async function saveFacts(
         value: parsed.data,
         provenance: write.provenance,
         sourceUrl: write.sourceUrl ?? null,
+        note: write.note ?? null,
         checkedAt,
       })
       .onConflictDoUpdate({
         target: [factsTable.listingId, factsTable.field, factsTable.provenance],
-        set: { value: parsed.data, sourceUrl: write.sourceUrl ?? null, checkedAt },
+        set: { value: parsed.data, sourceUrl: write.sourceUrl ?? null, note: write.note ?? null, checkedAt },
       });
     saved += 1;
   }

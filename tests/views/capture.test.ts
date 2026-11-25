@@ -67,6 +67,24 @@ describe("extension capture", () => {
       method: "POST",
     });
   });
+  it("says posts the app had no time for are saved, not failed", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({ ok: true, json: async () => ({ results: [{ status: "stored" }], pending: 3 }) }),
+    );
+    expect(await capture("https://finder.example.com", "sample-token-123456", page)).toBe(
+      "1 listings added, 0 roommate leads, 0 skipped or failed. 3 saved, will finish processing later.",
+    );
+  });
+  it("ignores a pending count that is not a positive number", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({ ok: true, json: async () => ({ results: [{ status: "stored" }], pending: "3" }) }),
+    );
+    expect(await capture("https://finder.example.com", "sample-token-123456", page)).toBe(
+      "1 listings added, 0 roommate leads, 0 skipped or failed.",
+    );
+  });
   it("does not report success after an authentication failure", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 401 }));
     await expect(

@@ -10,9 +10,10 @@
 
 import { createHash, timingSafeEqual } from "node:crypto";
 import { z } from "zod";
-import type { ChannelName, IntakeOutcome, RawListing } from "./types";
-import { processRaw, type IntakeDeps } from "./pipeline";
-import { recordChannelRun } from "./store";
+import { CAPTURE_BUDGET, processBatch, startBudget, type RunBudget } from "./budget";
+import { recordCaptureRuns, savePending } from "./pending";
+import type { IntakeDeps } from "./pipeline";
+import type { RawListing } from "./types";
 
 export const CAPTURE_TOKEN_HEADER = "x-capture-token";
 export const MAX_BODY_CHARS = 2_000_000;
@@ -101,9 +102,15 @@ export function captureToRaw(payload: CapturePayload): RawListing[] {
 
 export type CaptureResponse = { status: number; body: Record<string, unknown> };
 
+/**
+ * Process what fits in the time budget and keep the rest. Posts that do not fit are saved in
+ * pending_captures, and the response says how many, so the extension can say "saved, will finish
+ * processing later". The next daily cron run finishes them.
+ */
 export async function handleCapture(
   request: { token: string | null; expectedToken: string | undefined; body: unknown },
   deps: () => Promise<IntakeDeps>,
+  options: { budget?: RunBudget; clock?: () => number } = {},
 ): Promise<CaptureResponse> {
   if (!tokenMatches(request.token, request.expectedToken)) {
     return { status: 401, body: { error: "unauthorized" } };
@@ -114,35 +121,24 @@ export async function handleCapture(
   }
   const items = captureToRaw(parsed.data);
   const ready = await deps();
-  const outcomes: IntakeOutcome[] = [];
-  for (const raw of items) outcomes.push(await processRaw(ready, raw));
+  const budget = startBudget(options.budget ?? CAPTURE_BUDGET, options.clock);
+  const batch = await processBatch(ready, items, items.length, budget);
 
-  // One channel_runs row per group for Facebook batches, so "last captured" is per group.
-  const channel: ChannelName = "posts" in parsed.data ? "facebook_capture" : "extension";
-  const groups = new Map<string | null, IntakeOutcome[]>();
-  for (const [index, outcome] of outcomes.entries()) {
-    const group = items[index]?.groupName ?? null;
-    groups.set(group, [...(groups.get(group) ?? []), outcome]);
-  }
   const now = ready.now().toISOString();
-  for (const [group, list] of groups) {
-    await recordChannelRun(
-      ready.db,
-      {
-        channel,
-        groupName: group,
-        itemsSeen: list.length,
-        itemsNew: list.filter((o) => o.status === "stored" || o.status === "roommate_lead").length,
-        error: list.some((o) => o.status === "error") ? "some posts failed" : null,
-      },
-      now,
-    );
-  }
+  // What did not fit is kept, so nothing the user clicked on is lost.
+  if (batch.leftover.length > 0) await savePending(ready.db, batch.leftover, now);
+  await recordCaptureRuns(
+    ready.db,
+    items,
+    batch.outcomes,
+    now,
+    batch.deferred > 0 ? `${batch.deferred} posts saved to finish on the next run` : null,
+  );
   return {
     status: 200,
     body: {
       ok: true,
-      results: outcomes.map((o) => ({
+      results: batch.outcomes.map((o) => ({
         status: o.status,
         listingId: o.listingId,
         bucket: o.bucket,
@@ -150,6 +146,8 @@ export async function handleCapture(
         commuteMinutes: o.commuteMinutes,
         note: o.note,
       })),
+      // Posts saved for later. The extension shows these as saved, not as failed.
+      pending: batch.deferred,
     },
   };
 }

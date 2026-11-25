@@ -325,3 +325,21 @@ export const loginAttempts = sqliteTable(
   },
   (table) => [index("login_attempts_client_idx").on(table.clientKey, table.attemptedAt)],
 );
+
+/**
+ * Posts the extension sent that the capture route had no time left to process. The next cron run
+ * finishes them. `raw` is the parsed capture (validated again when read); `url` is unique so
+ * capturing the same page twice queues it once.
+ */
+export const pendingCaptures = sqliteTable(
+  "pending_captures",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    url: text("url"),
+    raw: text("raw", { mode: "json" }).notNull(),
+    createdAt: text("created_at").notNull(),
+    /** How many runs have tried and failed to finish it. It is dropped after three. */
+    attempts: integer("attempts").notNull().default(0),
+  },
+  (table) => [uniqueIndex("pending_captures_url_idx").on(table.url)],
+);

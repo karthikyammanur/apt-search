@@ -1,7 +1,15 @@
 import { z } from "zod";
 import { cachedFetch, failure, mapped, query, TTL, type ClientOptions } from "./core";
-import { minutes, routeInput, seconds, type Coordinates, type Route } from "./types";
+import { minutes, routeInput, seconds, type Coordinates, type Route, type StopPoint } from "./types";
 
+const place = z
+  .object({
+    name: z.string().optional(),
+    lat: z.number().optional(),
+    lon: z.number().optional(),
+    stopId: z.string().optional(),
+  })
+  .optional();
 export const transitlandSchema = z.object({
   plan: z.object({
     itineraries: z.array(
@@ -13,12 +21,28 @@ export const transitlandSchema = z.object({
             duration: seconds,
             routeShortName: z.string().optional(),
             routeLongName: z.string().optional(),
+            agencyName: z.string().optional(),
+            from: place,
+            to: place,
           }),
         ),
       }),
     ),
   }),
 });
+type Leg = z.infer<typeof transitlandSchema>["plan"]["itineraries"][number]["legs"][number];
+
+/** The planner labels legs by vehicle (BUS, RAIL, TRAM...). The app's steps say WALK, BICYCLE or TRANSIT. */
+function stepMode(mode: string): string {
+  const upper = mode.toUpperCase();
+  return upper === "WALK" || upper === "BICYCLE" ? upper : "TRANSIT";
+}
+const stopPoint = (p: NonNullable<Leg["from"]> | undefined): StopPoint | null =>
+  p && (p.stopId !== undefined || p.lat !== undefined)
+    ? { stopId: p.stopId ?? null, lat: p.lat ?? null, lng: p.lon ?? null }
+    : null;
+const nonEmpty = (text: string | undefined) => (text ? text : null);
+
 export function createTransitland(options: ClientOptions = {}) {
   const transport = options.transport ?? cachedFetch;
   return {
@@ -59,14 +83,24 @@ export function createTransitland(options: ClientOptions = {}) {
           TTL.route,
         ),
         (data): Route | undefined => {
-          const itinerary = data.plan.itineraries[0];
+          // The planner returns a walk-only itinerary beside the transit one, and not always in the
+          // same order. The commute is the quickest way without a car, so take the shortest.
+          const itinerary = data.plan.itineraries.reduce<(typeof data.plan.itineraries)[number] | undefined>(
+            (best, candidate) => (best === undefined || candidate.duration < best.duration ? candidate : best),
+            undefined,
+          );
           return (
             itinerary && {
               minutes: minutes(itinerary.duration),
               steps: itinerary.legs.map((leg) => ({
-                mode: leg.mode,
+                mode: stepMode(leg.mode),
                 minutes: minutes(leg.duration),
                 lineName: leg.routeShortName ?? leg.routeLongName ?? null,
+                agencyName: nonEmpty(leg.agencyName),
+                departureStop: nonEmpty(leg.from?.name),
+                arrivalStop: nonEmpty(leg.to?.name),
+                departurePoint: stopPoint(leg.from),
+                arrivalPoint: stopPoint(leg.to),
               })),
             }
           );

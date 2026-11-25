@@ -6,7 +6,7 @@ This is the checklist for the first production deploy. Nothing here deploys by i
 
 Nothing in the code throws at startup for a missing variable. Missing keys turn a feature off (it shows Unknown) or make a route refuse every call. So check this table before the first deploy rather than waiting for an error.
 
-Set these in the Vercel project (Settings, Environment Variables), for Production. Add Preview too if you want preview deployments to work.
+Set these in the Vercel project (Settings, Environment Variables), for Production. Add Preview too if you want preview deployments to work. A preview behaves exactly like production, including no Google (section 7).
 
 | Variable | Read by | Required | Notes |
 | --- | --- | --- | --- |
@@ -30,8 +30,6 @@ Do not set these on Vercel:
 Set by Vercel itself: `VERCEL`, `VERCEL_ENV` (read by `src/lib/providers/fallbacks.ts`, `src/lib/intake/geo.ts` and `src/db/index.ts`) and `NODE_ENV` (`src/app/login/actions.ts`, the cookie `secure` flag).
 
 Shell only, for the one-time commands in section 4, never in a file: `DATABASE_URL`, `DATABASE_AUTH_TOKEN` and `API_511_TOKEN` (`scripts/gtfs/download.ts`).
-
-`.env.example` also lists `OLLAMA_BASE_URL`, `TRAVELTIME_*`, `ORS_API_KEY`, `HUD_API_TOKEN`, `ENABLE_APIFY` and `APIFY_TOKEN`. No code reads them today, so setting them does nothing.
 
 ### How the database client picks its database
 
@@ -67,10 +65,13 @@ The docs pages do not give a Hobby limit for projects with Fluid Compute turned 
 - No new post is started after 150 s. A channel that has not begun by then, or that finds the 12-post total used up, is skipped and is not recorded as run, so it goes first the next day.
 - A post still unfinished at 270 s is given up on, the rest are deferred, and the run records itself and answers, instead of being killed by the platform at 300 s with nothing recorded. That leaves 30 s for the final writes.
 - Deferred posts are noted in `channel_runs` and picked up by the next daily run.
+- A full run (no channel named) first finishes any posts the capture route saved as pending, using the same budget.
 
 A post takes roughly 10 to 20 s (one model call, then geocoding, commute and places). Twelve of them fit well inside 150 s of start time in a normal run. `tests/intake/run-budget.test.ts` checks the caps, the start cutoff, the hard stop, and that the budget stays inside `maxDuration`.
 
-`/api/capture` (the extension) handles one click at a time and also has `maxDuration = 300`.
+`/api/capture` (the extension) also has `maxDuration = 300` and its own budget, `CAPTURE_BUDGET`: at most 50 posts that need real work, the same 150 s start cutoff and the same 270 s hard stop. It processes what fits, stores the rest in the `pending_captures` table (one row per post URL, so capturing a post twice queues it once), and answers `{ ok, results, pending }`. The next cron run finishes them first. A pending post that fails is retried up to 3 times and then dropped. The extension shows "N saved, will finish processing later" when `pending` is above 0.
+
+Migration 0003 creates `pending_captures`: run `npm run db:migrate` against Turso (section 4) before this version is deployed, and against your local `data/dev.db`.
 
 ## 3. Create the database and the project
 
@@ -134,7 +135,7 @@ Remove-Item Env:CRON_SECRET
 
 ## 6. The browser extension for the production URL
 
-The extension needs no rebuild. It stores the app URL and token in the browser, and it allows any `https://` origin as an optional permission.
+Rebuild the extension once after pulling this version (`node extension/build.mjs`, then reload it in `chrome://extensions`), so it can show the "saved, will finish processing later" message; an old build still works but ignores it. It stores the app URL and token in the browser, and it allows any `https://` origin as an optional permission.
 
 1. If you have not built it: `node extension/build.mjs`, then in Chrome open `chrome://extensions`, turn on Developer mode, choose Load unpacked and select `extension/dist`.
 2. Open the extension's Options page.
@@ -145,33 +146,40 @@ The extension needs no rebuild. It stores the app URL and token in the browser, 
 
 If a capture is rejected: a 401 means the token differs from `CAPTURE_TOKEN` (or that variable is missing or under 16 characters). If Chrome shows no permission prompt, you are not saving from a click on Save. Changing `CAPTURE_TOKEN` in Vercel needs a redeploy before it takes effect, and the same change in the extension's Options.
 
-## 7. Google is not used in production
+## 7. Google is not used on Vercel
 
-Google's Maps Demo Key terms forbid production use, so the code decides at run time (`googleMode` in `src/lib/providers/fallbacks.ts`, tested in `tests/providers/google-policy.test.ts`):
+Google's Maps Demo Key terms forbid production use, so the code decides at run time (`googleMode` in `src/lib/providers/fallbacks.ts`, tested in `tests/providers/google-policy.test.ts`). **Every Vercel deployment, preview included, behaves like production.** Only your laptop, or a Vercel deployment whose `VERCEL_ENV` is `development`, may use Google.
 
 | Where it runs | Order for transit | Order for geocoding, walking, biking | Order for nearby places |
 | --- | --- | --- | --- |
-| Your laptop (`VERCEL` not set, or `VERCEL_ENV=development`) | Google, then Transitland | Google, then Geoapify | Google, then Overpass |
-| Vercel preview | Transitland, then Google | Geoapify, then Google | Overpass, then Google |
-| Vercel production (also if `VERCEL_ENV` is missing) | Transitland only | Geoapify only | Overpass only |
+| Your laptop (`VERCEL` not set, or `VERCEL_ENV=development`) | Google, then Transitland | Google, then Geoapify | Google, then Overpass, then Geoapify Places |
+| Any other Vercel deployment (production, preview, or `VERCEL_ENV` missing) | Transitland only | Geoapify only | Overpass, then Geoapify Places |
 
-Local runs keep Google first because it is the most accurate reference for checking the other providers. Preview deployments only use Google as a last resort and only if you set the key there; leave it out and previews behave like production.
+Local runs keep Google first because it is the most accurate reference for checking the other providers.
+
+Two rules apply to answers that come from the free providers:
+
+- **Caltrain pass.** Transitland names platforms ("Menlo Park Caltrain Station Southbound"), not fare stations. For each rail leg the app takes the boarding and alighting points, matches the stop id (or else the nearest Caltrain station in `transit_stops` within 300 m), and prices the pass from those stations' zones. If no station is found the pass stays Unknown.
+- **Commute near the limit.** A commute that came from a free provider and is within 5 minutes of the cap (25 to 35 minutes for a 30 minute cap) is not decided: the commute filter returns Unknown, "Commute close to the limit, check it on Google Maps". The provider is stored with the commute fact (`facts.note`, "Routed by Transitland"). Google's answers are never held back.
 
 ### What gets worse without Google
 
-One comparison run on 2026-11-24 (`npm run compare:providers`, script in `scripts/compare-providers.ts`): the first 6 demo listings, each routed to the example office, transit arriving 8:30 am on Tuesday 2026-12-01. Google and the free providers were asked the same questions.
+One comparison run on 2026-11-24 (`npm run compare:providers`, script in `scripts/compare-providers.ts`): the first 6 demo listings, each routed to the example office, transit arriving 8:30 am on Tuesday 2026-12-01. Google and the free chain were asked the same questions.
 
-| Feature | Google | Free provider | What changes |
+| Feature | Google | Free chain | What changes |
 | --- | --- | --- | --- |
-| Transit commute (Transitland) | 6 of 6 answered | 6 of 6 answered | Median gap 0.5 min, but the gap is large on short trips: Google 13 and 9 min against Transitland 31 and 30 on two listings. Within 5 min on 3 of 6. Largest gap 21 min. Likely cause: Google can return a mostly walking trip where Transitland returns a transit trip. That is a hypothesis, not checked. |
-| Caltrain zone and monthly pass | agency and both stations named on 6 of 6 | 0 of 6 | The biggest loss. Transitland's steps carry line names only, never stop names, so a Caltrain zone cannot be priced and the pass price stays Unknown rather than guessed. Any route whose agency is not recognised is also Unknown. Rent and utilities are unaffected, but the "all-in plus transit" figure is Unknown for these routes. |
+| Transit commute (Transitland) | 6 of 6 | 6 of 6 | Median gap 0 min, within 5 min on 5 of 6, largest gap 6 min (Google 34, Transitland 28). Listing by listing, Google then Transitland: 34/28, 13/15, 29/28, 9/10, 36/31, 32/34. |
+| Caltrain zone and monthly pass | priced 6 of 6 | priced 6 of 6 | Same price on 5 of 6. On the listing that differs, Transitland found a quicker route (31 min) that boards Caltrain at Mountain View, so its pass is 186 (Caltrain 1 zone plus VTA) where Google's VTA-only route is 90. Both are real options; the cheaper bus route is not what Transitland chose. |
 | Walking time (Geoapify) | 6 of 6 | 6 of 6 | Geoapify is slower: median +3 min, largest +6 min, within 5 min on 5 of 6. |
-| Biking time (Geoapify) | 6 of 6 | 6 of 6 | Median +1 min, largest +6 min (34 against 40 on the longest trip), within 5 min on 5 of 6. |
-| Nearby places (Overpass) | 6 of 6 | 4 of 6 | Overpass failed with a network error on 2 listings, and those places show Unknown. On the 4 that answered, the nearest grocery matched within 13 m on 3 and differed on one (506 m against 971 m). Overpass also finds more gyms and cafes, because Google returns at most 20 results per search, so the counts are not like for like. |
-| Place ratings | 17 to 20 of the 19 to 20 places returned had a rating | none of the places had one | Overpass has no ratings. Nothing in the app uses place ratings today, so no feature changes. |
-| Geocoding (Geoapify) | 6 of 6 | 6 of 6 | The demo addresses are made up, so the two services returned different guesses (median 1,510 m apart). That says nothing about accuracy on real addresses. Check it against a few real listings before trusting it. |
+| Biking time (Geoapify) | 6 of 6 | 6 of 6 | Median +1 min, largest +6 min, within 5 min on 5 of 6. |
+| Nearby places | 6 of 6 | 6 of 6 | Overpass answered on 2 listings and failed with a network error on 4, where Geoapify Places answered. Over all 6: groceries 22 against 19, gyms 22 against 18, cafes 75 against 111 (Google returns at most 20 places per search, so the counts are not like for like). |
+| Gyms from the Geoapify fallback | found on 4 of 4 | 0 of 4 | Geoapify Places returned no fitness centre near any of the 4 listings it served, though Google found 1 to 9 on each. When Overpass is down, the gym count reads zero rather than Unknown. |
+| Nearest grocery | | | Matched within 25 m on 4 of 6. On two listings that Geoapify served, the nearest was much further than Google's (506 against 973 m, 417 against 939 m), because it lists fewer supermarkets. |
+| Geocoding (Geoapify) | 6 of 6 | 6 of 6 | The demo addresses are made up, so the two services returned different guesses. That says nothing about accuracy on real addresses. Check it against a few real listings before trusting it. |
 
-What to do about the first two rows: the Transitland gap on short trips and the missing Caltrain stations are the reasons to keep the acceptance check (TASKS.md step 8, commute within 5 minutes of Google Maps) honest for production, and to look at a different transit source if the Caltrain pass price matters for your shortlist. The 511.org data used by `npm run gtfs` already knows the stations, but it is not used for routing.
+Corrections to the first version of this table, written earlier on the same day: it counted "Caltrain zone priced 0 of 6", but only listing 3 uses Caltrain; and Transitland's bus legs were being dropped from the route, which made some passes price at 0. Both are fixed. The earlier large gaps on listings 2 and 4 (31 and 30 min against Google's 13 and 9) came from the client picking the first itinerary Transitland listed, which is a walk-only one, not from Transitland being wrong; it now takes the quickest itinerary.
+
+Remaining weak spots: commutes between 25 and 35 minutes from Transitland show as Unknown (4 of the 6 listings here), gyms are missing when Overpass is down, and Transitland can pick a different route than Google, which moves the pass price.
 
 ## 8. If something goes wrong
 

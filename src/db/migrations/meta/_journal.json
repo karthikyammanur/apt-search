@@ -22,6 +22,13 @@
       "when": 1795501855288,
       "tag": "0002_data_fixes_6a",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1795569697789,
+      "tag": "0003_pending_captures",
+      "breakpoints": true
     }
   ]
 }

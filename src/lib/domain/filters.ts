@@ -98,12 +98,42 @@ export function checkLease(facts: ListingFacts, settings: Settings): FilterResul
   return { filter: "lease", status: lease.status, reason: lease.reason, questions: lease.questions };
 }
 
-/** 4. Commute without a car within my limit. */
+/** Routing services that are free and less checked than Google Maps, by the name written in the fact's note. */
+const FREE_COMMUTE_PROVIDERS = ["transitland"] as const;
+/** A free provider's commute this close to the limit (either side, inclusive) is not trusted to decide. */
+export const COMMUTE_MARGIN_MINUTES = 5;
+
+/** The note enrichment writes on a commute, so the filter knows who routed it. No provider means no note. */
+export function routedByNote(provider: string | undefined): string | null {
+  return provider ? `Routed by ${provider.charAt(0).toUpperCase()}${provider.slice(1)}` : null;
+}
+
+function routedByFreeProvider(fact: { provenance: string; note?: string | null }): boolean {
+  if (fact.provenance !== "api") return false;
+  const match = /^Routed by (\w+)$/i.exec(fact.note ?? "");
+  return match !== null && (FREE_COMMUTE_PROVIDERS as readonly string[]).includes(match[1]!.toLowerCase());
+}
+
+/**
+ * 4. Commute without a car within my limit. A commute a free provider routed, within 5 minutes of the
+ * limit, is Unknown rather than Pass or Fail: those providers can be a few minutes off, so the last
+ * stretch is checked on Google Maps. Once I give the minutes myself the fact is no longer the provider's.
+ */
 export function checkCommute(facts: ListingFacts, settings: Settings): FilterResult {
-  const minutes = facts.commuteMinutes?.value;
-  if (minutes === undefined) {
+  const commute = facts.commuteMinutes;
+  const minutes = commute?.value;
+  if (commute === null || minutes === undefined) {
     return unknown("commute", "Commute is Unknown", [
       { field: "commuteMinutes", ask: "landlord", text: "What is the exact address, or the nearest cross streets?" },
+    ]);
+  }
+  if (routedByFreeProvider(commute) && Math.abs(minutes - settings.maxCommuteMinutes) <= COMMUTE_MARGIN_MINUTES) {
+    return unknown("commute", "Commute close to the limit, check it on Google Maps", [
+      {
+        field: "commuteMinutes",
+        ask: "me",
+        text: `A free routing service says ${minutes} min against a ${settings.maxCommuteMinutes} min limit. Check it on Google Maps and tell me the minutes.`,
+      },
     ]);
   }
   return minutes <= settings.maxCommuteMinutes

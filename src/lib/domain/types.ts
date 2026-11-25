@@ -9,7 +9,7 @@ import type { TransitRoute } from "@/lib/regions/types";
 
 export type { Provenance, Settings, SoftFactor, TransitRoute };
 
-export type Fact<T> = { value: T; provenance: Provenance; sourceUrl?: string | null };
+export type Fact<T> = { value: T; provenance: Provenance; sourceUrl?: string | null; note?: string | null };
 
 export type ListingType = "room" | "studio" | "apartment";
 export type LeaseType = "fixed" | "month_to_month" | "sublet";
